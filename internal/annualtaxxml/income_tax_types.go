@@ -166,10 +166,23 @@ type DPFOVetaB struct {
 
 // DPFOVetaV is the §10 summary of Příloha č. 2 (other income / "ostatní příjmy").
 // Required when ř.40 (kc_zd10 in VetaO) is filled.
+//
+// EPO has TWO parallel sets of summary attributes that must both be filled:
+//   - kc_prij10 / kc_vyd10 / kc_zd10p  -- úhrny carried to ř.40 in main DAP
+//   - uhrn_prijmy10 / uhrn_vydaje10 / uhrn_rozdil10  -- column-sum úhrny shown
+//     at the bottom of the §10 table itself
+//
+// Controls 1821 / 1822 / 1823 fire when the table-bottom úhrns are missing or
+// don't equal the sum of values in the corresponding VetaJ rows. We emit both
+// trios with identical values; with our single-row VetaJ output they always
+// match the row sums.
 type DPFOVetaV struct {
-	KcPrij10 int64 `xml:"kc_prij10,attr"` // sum of revenue across §10 income types
-	KcVyd10  int64 `xml:"kc_vyd10,attr"`  // sum of expenses (capped per type at revenue)
-	KcZd10p  int64 `xml:"kc_zd10p,attr"`  // dílčí ZD §10 transferred to ř.40
+	KcPrij10     int64 `xml:"kc_prij10,attr"`     // úhrn appears at bottom of §10 table column 2 (transferred to ř.40 calc)
+	KcVyd10      int64 `xml:"kc_vyd10,attr"`      // úhrn at bottom of column 3 (capped per type at revenue)
+	KcZd10p      int64 `xml:"kc_zd10p,attr"`      // úhrn of positive rozdíly (transferred to ř.40)
+	UhrnPrijmy10 int64 `xml:"uhrn_prijmy10,attr"` // EPO control 1821 -- table column 2 sum
+	UhrnVydaje10 int64 `xml:"uhrn_vydaje10,attr"` // EPO control 1822 -- table column 3 sum
+	UhrnRozdil10 int64 `xml:"uhrn_rozdil10,attr"` // EPO control 1823 -- table column 4 sum (positives only)
 }
 
 // DPFOVetaJ is one row of the §10 detail table in Příloha č. 2.

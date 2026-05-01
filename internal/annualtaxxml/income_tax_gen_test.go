@@ -249,6 +249,11 @@ func TestIncomeTaxXML_Section10TriggersPriloha2(t *testing.T) {
 		`kc_prij10="5000"`,
 		`kc_vyd10="3314"`,
 		`kc_zd10p="1686"`,
+		// EPO controls 1821/1822/1823 require these table-bottom úhrn attributes
+		// to also be present and equal to the row column sums.
+		`uhrn_prijmy10="5000"`,
+		`uhrn_vydaje10="3314"`,
+		`uhrn_rozdil10="1686"`,
 		`<VetaJ `,
 		`kod_dr_prij10="D"`,
 		`prijmy10="5000"`,

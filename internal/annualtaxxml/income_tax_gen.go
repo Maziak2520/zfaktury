@@ -378,9 +378,12 @@ func buildPriloha2(itr *domain.IncomeTaxReturn) (*DPFOVetaV, []DPFOVetaJ) {
 	}
 	diff := gross - exp
 	v := &DPFOVetaV{
-		KcPrij10: gross,
-		KcVyd10:  exp,
-		KcZd10p:  diff,
+		KcPrij10:     gross,
+		KcVyd10:      exp,
+		KcZd10p:      diff,
+		UhrnPrijmy10: gross,
+		UhrnVydaje10: exp,
+		UhrnRozdil10: diff,
 	}
 	j := []DPFOVetaJ{{
 		KodDrPrij10: "D",
