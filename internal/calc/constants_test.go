@@ -36,8 +36,20 @@ func TestGetTaxConstants_2024Values(t *testing.T) {
 	if c.BasicCredit != domain.NewAmount(30_840, 0) {
 		t.Errorf("2024 BasicCredit = %d, want %d", c.BasicCredit, domain.NewAmount(30_840, 0))
 	}
-	if c.SocialMinMonthly != domain.NewAmount(11_024, 0) {
-		t.Errorf("2024 SocialMinMonthly = %d, want %d", c.SocialMinMonthly, domain.NewAmount(11_024, 0))
+	// SP HV 2024: 30 % × 43 967 = 13 191 Kč.
+	if c.SocialMinMonthly != domain.NewAmount(13_191, 0) {
+		t.Errorf("2024 SocialMinMonthly = %d, want %d", c.SocialMinMonthly, domain.NewAmount(13_191, 0))
+	}
+	// ZP 2024: 50 % × 43 967 = 21 983,50 → 21 984 Kč.
+	if c.HealthMinMonthly != domain.NewAmount(21_984, 0) {
+		t.Errorf("2024 HealthMinMonthly = %d, want %d", c.HealthMinMonthly, domain.NewAmount(21_984, 0))
+	}
+	// Sleva na studenta zrušena konsolidačním balíčkem od 1. 1. 2024.
+	if c.StudentCredit != 0 {
+		t.Errorf("2024 StudentCredit = %d, want 0 (zrušena od 2024)", c.StudentCredit)
+	}
+	if c.DeductionCapSavingsCombined != domain.NewAmount(48_000, 0) {
+		t.Errorf("2024 DeductionCapSavingsCombined = %d, want 48000", c.DeductionCapSavingsCombined)
 	}
 	if c.SecurityExemptionLimit != 0 {
 		t.Errorf("2024 SecurityExemptionLimit = %d, want 0 (no limit)", c.SecurityExemptionLimit)
@@ -46,11 +58,16 @@ func TestGetTaxConstants_2024Values(t *testing.T) {
 
 func TestGetTaxConstants_2025Values(t *testing.T) {
 	c, _ := GetTaxConstants(2025)
-	if c.SocialMinMonthly != domain.NewAmount(11_584, 0) {
-		t.Errorf("2025 SocialMinMonthly = %d, want %d", c.SocialMinMonthly, domain.NewAmount(11_584, 0))
+	// SP HV 2025: 35 % × 46 557 = 16 295 Kč.
+	if c.SocialMinMonthly != domain.NewAmount(16_295, 0) {
+		t.Errorf("2025 SocialMinMonthly = %d, want %d", c.SocialMinMonthly, domain.NewAmount(16_295, 0))
 	}
-	if c.HealthMinMonthly != domain.NewAmount(10_874, 0) {
-		t.Errorf("2025 HealthMinMonthly = %d, want %d", c.HealthMinMonthly, domain.NewAmount(10_874, 0))
+	// ZP 2025: 50 % × 46 557 = 23 278,50 → 23 279 Kč.
+	if c.HealthMinMonthly != domain.NewAmount(23_279, 0) {
+		t.Errorf("2025 HealthMinMonthly = %d, want %d", c.HealthMinMonthly, domain.NewAmount(23_279, 0))
+	}
+	if c.StudentCredit != 0 {
+		t.Errorf("2025 StudentCredit = %d, want 0 (zrušena od 2024)", c.StudentCredit)
 	}
 	if c.SecurityExemptionLimit != domain.NewAmount(100_000_000, 0) {
 		t.Errorf("2025 SecurityExemptionLimit = %d, want %d", c.SecurityExemptionLimit, domain.NewAmount(100_000_000, 0))
@@ -59,11 +76,15 @@ func TestGetTaxConstants_2025Values(t *testing.T) {
 
 func TestGetTaxConstants_2026Values(t *testing.T) {
 	c, _ := GetTaxConstants(2026)
-	if c.SocialMinMonthly != domain.NewAmount(12_139, 0) {
-		t.Errorf("2026 SocialMinMonthly = %d, want %d", c.SocialMinMonthly, domain.NewAmount(12_139, 0))
+	// 2026: placeholder hodnoty -- aktualizovat až vyjde nařízení vlády.
+	if c.SocialMinMonthly == 0 {
+		t.Errorf("2026 SocialMinMonthly should be set (placeholder OK)")
 	}
-	if c.HealthMinMonthly != domain.NewAmount(11_396, 0) {
-		t.Errorf("2026 HealthMinMonthly = %d, want %d", c.HealthMinMonthly, domain.NewAmount(11_396, 0))
+	if c.HealthMinMonthly == 0 {
+		t.Errorf("2026 HealthMinMonthly should be set (placeholder OK)")
+	}
+	if c.StudentCredit != 0 {
+		t.Errorf("2026 StudentCredit = %d, want 0 (zrušena od 2024)", c.StudentCredit)
 	}
 }
 

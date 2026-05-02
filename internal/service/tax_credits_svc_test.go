@@ -877,12 +877,12 @@ func TestTaxCreditsService_ComputeDeductions_AboveCap(t *testing.T) {
 	svc, _ := setupTaxCreditsSvc(t)
 	ctx := context.Background()
 
-	// Life insurance cap is 24000 CZK; claim 30000.
+	// Combined savings pool 2024+ je 48 000 Kč. Claim 60 000 -> capped na 48 000.
 	ded := &domain.TaxDeduction{
 		Year:          2025,
 		Category:      domain.DeductionLifeInsurance,
 		Description:   "Life insurance",
-		ClaimedAmount: domain.NewAmount(30000, 0),
+		ClaimedAmount: domain.NewAmount(60000, 0),
 	}
 	if err := svc.CreateDeduction(ctx, ded); err != nil {
 		t.Fatalf("CreateDeduction() error: %v", err)
@@ -894,8 +894,8 @@ func TestTaxCreditsService_ComputeDeductions_AboveCap(t *testing.T) {
 		t.Fatalf("ComputeDeductions() error: %v", err)
 	}
 
-	if total != domain.NewAmount(24_000, 0) {
-		t.Errorf("total = %d, want %d (capped)", total, domain.NewAmount(24_000, 0))
+	if total != domain.NewAmount(48_000, 0) {
+		t.Errorf("total = %d, want %d (capped at combined savings pool)", total, domain.NewAmount(48_000, 0))
 	}
 }
 
@@ -903,18 +903,18 @@ func TestTaxCreditsService_ComputeDeductions_MultipleSameCategory(t *testing.T) 
 	svc, _ := setupTaxCreditsSvc(t)
 	ctx := context.Background()
 
-	// Two pension deductions totaling 30000 CZK, cap is 24000.
+	// Combined savings pool 2024+ je 48 000 Kč; dvě penzijní položky po 30 000 -> 48 000 cap.
 	ded1 := &domain.TaxDeduction{
 		Year:          2025,
 		Category:      domain.DeductionPension,
 		Description:   "Pension 1",
-		ClaimedAmount: domain.NewAmount(15000, 0),
+		ClaimedAmount: domain.NewAmount(30000, 0),
 	}
 	ded2 := &domain.TaxDeduction{
 		Year:          2025,
 		Category:      domain.DeductionPension,
 		Description:   "Pension 2",
-		ClaimedAmount: domain.NewAmount(15000, 0),
+		ClaimedAmount: domain.NewAmount(30000, 0),
 	}
 	if err := svc.CreateDeduction(ctx, ded1); err != nil {
 		t.Fatalf("CreateDeduction(1) error: %v", err)
@@ -929,9 +929,9 @@ func TestTaxCreditsService_ComputeDeductions_MultipleSameCategory(t *testing.T) 
 		t.Fatalf("ComputeDeductions() error: %v", err)
 	}
 
-	// First gets 15000, second gets remaining 9000 (24000-15000).
-	if total != domain.NewAmount(24_000, 0) {
-		t.Errorf("total = %d, want %d (capped across two entries)", total, domain.NewAmount(24_000, 0))
+	// První 30 000, druhá 18 000 (zbytek 48k poolu).
+	if total != domain.NewAmount(48_000, 0) {
+		t.Errorf("total = %d, want %d (capped across two entries at combined pool)", total, domain.NewAmount(48_000, 0))
 	}
 }
 

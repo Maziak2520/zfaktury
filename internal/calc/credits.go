@@ -80,16 +80,33 @@ type DeductionResult struct {
 	TotalAllowed   domain.Amount
 }
 
+// savingsPoolKey is an internal sentinel used to share a single cap across
+// životní pojištění + penzijní spoření + DIP from 2024 (§ 15 odst. 5 ZDP).
+const savingsPoolKey = "__savings_pool"
+
 // ComputeDeductions computes allowed deduction amounts with statutory caps.
 // Each category has a maximum cap; multiple deductions of the same category share the cap.
 // Donation cap is 15% of the tax base.
+//
+// From 2024, životní pojištění (DeductionLifeInsurance) and penzijní spoření
+// (DeductionPension) share a single combined cap of DeductionCapSavingsCombined
+// (48 000 Kč) per § 15 odst. 5 ZDP. When that field is non-zero in constants,
+// both categories draw from one shared pool. Pre-2024 callers that supply the
+// legacy individual caps (DeductionCapLifeInsurance / DeductionCapPension) keep
+// the original per-category behaviour.
 func ComputeDeductions(deductions []DeductionInput, taxBase domain.Amount, constants TaxYearConstants) DeductionResult {
+	useCombined := constants.DeductionCapSavingsCombined > 0
+
 	categoryCaps := map[string]domain.Amount{
-		domain.DeductionMortgage:      constants.DeductionCapMortgage,
-		domain.DeductionLifeInsurance: constants.DeductionCapLifeInsurance,
-		domain.DeductionPension:       constants.DeductionCapPension,
-		domain.DeductionUnionDues:     constants.DeductionCapUnionDues,
-		domain.DeductionDonation:      taxBase.Multiply(0.15),
+		domain.DeductionMortgage:  constants.DeductionCapMortgage,
+		domain.DeductionUnionDues: constants.DeductionCapUnionDues,
+		domain.DeductionDonation:  taxBase.Multiply(0.15),
+	}
+	if useCombined {
+		categoryCaps[savingsPoolKey] = constants.DeductionCapSavingsCombined
+	} else {
+		categoryCaps[domain.DeductionLifeInsurance] = constants.DeductionCapLifeInsurance
+		categoryCaps[domain.DeductionPension] = constants.DeductionCapPension
 	}
 
 	remainingCap := make(map[string]domain.Amount, len(categoryCaps))
@@ -97,12 +114,20 @@ func ComputeDeductions(deductions []DeductionInput, taxBase domain.Amount, const
 		remainingCap[k] = v
 	}
 
+	resolveKey := func(cat string) string {
+		if useCombined && (cat == domain.DeductionLifeInsurance || cat == domain.DeductionPension) {
+			return savingsPoolKey
+		}
+		return cat
+	}
+
 	result := DeductionResult{
 		AllowedAmounts: make([]domain.Amount, len(deductions)),
 	}
 
 	for i, d := range deductions {
-		remaining, ok := remainingCap[d.Category]
+		key := resolveKey(d.Category)
+		remaining, ok := remainingCap[key]
 		if !ok {
 			// Unknown category, allow nothing.
 			result.AllowedAmounts[i] = 0
@@ -117,7 +142,7 @@ func ComputeDeductions(deductions []DeductionInput, taxBase domain.Amount, const
 			allowed = 0
 		}
 
-		remainingCap[d.Category] = remaining - allowed
+		remainingCap[key] = remaining - allowed
 		result.AllowedAmounts[i] = allowed
 		result.TotalAllowed += allowed
 	}

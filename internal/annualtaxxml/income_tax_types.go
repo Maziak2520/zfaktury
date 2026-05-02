@@ -55,12 +55,15 @@ type DPFOVetaD struct {
 	//   - ř.62 (sleva podle §35 odst.1 -- zaměstnanci ZTP) = da_slevy (NOT for OSVC)
 	//   - ř.63 (sleva podle §35a/35b -- investiční pobídky) = sleva_rp (NOT for OSVC)
 	//   - ř.64 (základní sleva na poplatníka §35ba 1a) = kc_op15_1a
-	KcDztrata     int64  `xml:"kc_dztrata,attr"`     // ř. 61 -- daňová ztráta (zaokr. nahoru, bez znaménka mínus)
-	DaSlezap      string `xml:"da_slezap,attr"`      // ř. 58 -- daň podle §16 (formát "Kc.00", decimal 2 frac digits)
-	DaCelod13     int64  `xml:"da_celod13,attr"`     // ř. 60 -- daň celkem zaokrouhlená na celé Kč nahoru
-	KcOp15_1a     int64  `xml:"kc_op15_1a,attr"`     // ř. 64 -- základní sleva na poplatníka (§ 35ba 1a) -- 30 840 Kč
-	UhrnSlevy35ba int64  `xml:"uhrn_slevy35ba,attr"` // ř. 70 -- úhrn slev podle § 35ba
-	DaSlevy35ba   int64  `xml:"da_slevy35ba,attr"`   // ř. 71 -- daň po slevách (= ř.60 - ř.70)
+	KcDztrata int64  `xml:"kc_dztrata,attr"` // ř. 61 -- daňová ztráta (zaokr. nahoru, bez znaménka mínus)
+	DaSlezap  string `xml:"da_slezap,attr"`  // ř. 58 -- daň podle §16 (formát "Kc.00", decimal 2 frac digits)
+	DaCelod13 int64  `xml:"da_celod13,attr"` // ř. 60 -- daň celkem zaokrouhlená na celé Kč nahoru
+	// XSD use="optional"; emitting kc_op15_1a="0" trips EPO consistency checks for
+	// resident taxpayers (XSD popis říká "Uveďte částku 30 840 Kč"). Vynech, když
+	// se sleva neuplatňuje (nerezident bez nároku), jinak emit standardních 30 840.
+	KcOp15_1a     int64 `xml:"kc_op15_1a,attr,omitempty"` // ř. 64 -- základní sleva na poplatníka (§ 35ba 1a) -- 30 840 Kč
+	UhrnSlevy35ba int64 `xml:"uhrn_slevy35ba,attr"`       // ř. 70 -- úhrn slev podle § 35ba
+	DaSlevy35ba   int64 `xml:"da_slevy35ba,attr"`         // ř. 71 -- daň po slevách (= ř.60 - ř.70)
 	// Per-child months claimed (used by EPO formula for ř.72). Each *2/*3 suffix selects
 	// the child order (1st/2nd/3rd+); ztpp variants apply the ZTP/P doubling.
 	// EPO formula: kc_dazvyhod = (m_deti × 1267 + m_deti2 × 1860 + m_deti3 × 2320)
@@ -139,15 +142,19 @@ type DPFOVetaO struct {
 // EPO control 1509 ("Oddíl 3/ř.47 - není současně vyplněn počet měsíců a částka")
 // requires m_uroky to be filled whenever kc_op28_5 (mortgage interest) is non-zero.
 type DPFOVetaS struct {
-	KcOp28_5  int64 `xml:"kc_op28_5,attr"`         // ř. 47 -- úroky z hypoték / stavebního spoření
-	MUroky    int   `xml:"m_uroky,attr,omitempty"` // počet měsíců placení úroků (1..12, povinné když kc_op28_5 > 0)
-	KcOp15_13 int64 `xml:"kc_op15_13,attr"`        // ř. 49 -- soukromé životní pojištění
-	KcOp15_12 int64 `xml:"kc_op15_12,attr"`        // ř. 48 -- penzijní spoření / pojištění
-	KcOp15_8  int64 `xml:"kc_op15_8,attr"`         // ř. 46 -- bezúplatná plnění (dary)
-	KcOdcelk  int64 `xml:"kc_odcelk,attr"`         // ř. 54 -- úhrn nezdanitelných částí (ř.46+47+...+53)
-	KcZdsniz  int64 `xml:"kc_zdsniz,attr"`         // ř. 55 -- ZD snížený o nezdanitelné části (= ř.45 - ř.54)
-	KcZdzaokr int64 `xml:"kc_zdzaokr,attr"`        // ř. 56 -- ZD zaokrouhlený na celá sta Kč dolů
-	DaDan16   int64 `xml:"da_dan16,attr"`          // ř. 57 -- daň podle § 16
+	// Per-řádek odpočtu jsou v XSD use="optional"; emitting "0" pro odpočty,
+	// které se neuplatňují, plnit nepatřičně (ř.46-49 jsou v papírovém formuláři
+	// prázdné, ne nulové). KcOdcelk / KcZdsniz / KcZdzaokr / DaDan16 zůstávají
+	// vždy přítomné -- jsou tahané formula controls a musí matchovat ř.45.
+	KcOp28_5  int64 `xml:"kc_op28_5,attr,omitempty"`  // ř. 47 -- úroky z hypoték / stavebního spoření
+	MUroky    int   `xml:"m_uroky,attr,omitempty"`    // počet měsíců placení úroků (1..12, povinné když kc_op28_5 > 0)
+	KcOp15_13 int64 `xml:"kc_op15_13,attr,omitempty"` // ř. 49 -- soukromé životní pojištění
+	KcOp15_12 int64 `xml:"kc_op15_12,attr,omitempty"` // ř. 48 -- penzijní spoření / pojištění
+	KcOp15_8  int64 `xml:"kc_op15_8,attr,omitempty"`  // ř. 46 -- bezúplatná plnění (dary)
+	KcOdcelk  int64 `xml:"kc_odcelk,attr"`            // ř. 54 -- úhrn nezdanitelných částí (ř.46+47+...+53)
+	KcZdsniz  int64 `xml:"kc_zdsniz,attr"`            // ř. 55 -- ZD snížený o nezdanitelné části (= ř.45 - ř.54)
+	KcZdzaokr int64 `xml:"kc_zdzaokr,attr"`           // ř. 56 -- ZD zaokrouhlený na celá sta Kč dolů
+	DaDan16   int64 `xml:"da_dan16,attr"`             // ř. 57 -- daň podle § 16
 }
 
 // DPFOVetaA is one row of Tabulka č. 2 (oddíl 5) -- "Údaje o vyživovaných dětech

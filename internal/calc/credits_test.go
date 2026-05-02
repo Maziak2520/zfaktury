@@ -7,11 +7,13 @@ import (
 )
 
 // testConstants returns TaxYearConstants with known values for testing.
+// Uses pre-2024 individual savings caps (24 000 each) to keep legacy test cases
+// stable; tests of the combined-cap path explicitly construct the 2024+ shape.
 func testConstants() TaxYearConstants {
 	return TaxYearConstants{
 		SpouseCredit:              domain.NewAmount(24_840, 0),
 		SpouseIncomeLimit:         domain.NewAmount(68_000, 0),
-		StudentCredit:             domain.NewAmount(4_020, 0),
+		StudentCredit:             domain.NewAmount(4_020, 0), // pre-2024 hodnota pro test
 		DisabilityCredit1:         domain.NewAmount(2_520, 0),
 		DisabilityCredit3:         domain.NewAmount(5_040, 0),
 		DisabilityZTPP:            domain.NewAmount(16_140, 0),
@@ -22,6 +24,24 @@ func testConstants() TaxYearConstants {
 		DeductionCapLifeInsurance: domain.NewAmount(24_000, 0),
 		DeductionCapPension:       domain.NewAmount(24_000, 0),
 		DeductionCapUnionDues:     domain.NewAmount(3_000, 0),
+	}
+}
+
+// testConstants2024 returns the 2024+ shape with combined savings cap.
+func testConstants2024() TaxYearConstants {
+	return TaxYearConstants{
+		SpouseCredit:                domain.NewAmount(24_840, 0),
+		SpouseIncomeLimit:           domain.NewAmount(68_000, 0),
+		StudentCredit:               0, // sleva zrušena
+		DisabilityCredit1:           domain.NewAmount(2_520, 0),
+		DisabilityCredit3:           domain.NewAmount(5_040, 0),
+		DisabilityZTPP:              domain.NewAmount(16_140, 0),
+		ChildBenefit1:               domain.NewAmount(15_204, 0),
+		ChildBenefit2:               domain.NewAmount(22_320, 0),
+		ChildBenefit3Plus:           domain.NewAmount(27_840, 0),
+		DeductionCapMortgage:        domain.NewAmount(150_000, 0),
+		DeductionCapSavingsCombined: domain.NewAmount(48_000, 0),
+		DeductionCapUnionDues:       domain.NewAmount(3_000, 0),
 	}
 }
 
@@ -305,6 +325,74 @@ func TestComputeDeductions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ComputeDeductions(tt.deductions, tt.taxBase, c)
+			if len(result.AllowedAmounts) != len(tt.wantAllowed) {
+				t.Fatalf("AllowedAmounts length = %d, want %d", len(result.AllowedAmounts), len(tt.wantAllowed))
+			}
+			for i, got := range result.AllowedAmounts {
+				if got != tt.wantAllowed[i] {
+					t.Errorf("AllowedAmounts[%d] = %v, want %v", i, got, tt.wantAllowed[i])
+				}
+			}
+			if result.TotalAllowed != tt.wantTotalAllowed {
+				t.Errorf("TotalAllowed = %v, want %v", result.TotalAllowed, tt.wantTotalAllowed)
+			}
+		})
+	}
+}
+
+// TestComputeDeductions_CombinedSavingsCap verifies that from 2024 životní
+// pojištění + penzijní spoření share a single 48 000 Kč pool per § 15 odst. 5
+// ZDP and that mortgage / union / donation caps still apply independently.
+func TestComputeDeductions_CombinedSavingsCap(t *testing.T) {
+	c := testConstants2024()
+	taxBase := domain.NewAmount(1_000_000, 0)
+
+	tests := []struct {
+		name             string
+		deductions       []DeductionInput
+		wantAllowed      []domain.Amount
+		wantTotalAllowed domain.Amount
+	}{
+		{
+			name: "life 30k + pension 30k -> capped at combined 48k (first claim 30k, second remainder 18k)",
+			deductions: []DeductionInput{
+				{Category: domain.DeductionLifeInsurance, ClaimedAmount: domain.NewAmount(30_000, 0)},
+				{Category: domain.DeductionPension, ClaimedAmount: domain.NewAmount(30_000, 0)},
+			},
+			wantAllowed:      []domain.Amount{domain.NewAmount(30_000, 0), domain.NewAmount(18_000, 0)},
+			wantTotalAllowed: domain.NewAmount(48_000, 0),
+		},
+		{
+			name: "life 50k alone uses entire 48k pool",
+			deductions: []DeductionInput{
+				{Category: domain.DeductionLifeInsurance, ClaimedAmount: domain.NewAmount(50_000, 0)},
+			},
+			wantAllowed:      []domain.Amount{domain.NewAmount(48_000, 0)},
+			wantTotalAllowed: domain.NewAmount(48_000, 0),
+		},
+		{
+			name: "life 20k + pension 20k -> both fully allowed (40k < 48k pool)",
+			deductions: []DeductionInput{
+				{Category: domain.DeductionLifeInsurance, ClaimedAmount: domain.NewAmount(20_000, 0)},
+				{Category: domain.DeductionPension, ClaimedAmount: domain.NewAmount(20_000, 0)},
+			},
+			wantAllowed:      []domain.Amount{domain.NewAmount(20_000, 0), domain.NewAmount(20_000, 0)},
+			wantTotalAllowed: domain.NewAmount(40_000, 0),
+		},
+		{
+			name: "mortgage independent of savings pool",
+			deductions: []DeductionInput{
+				{Category: domain.DeductionLifeInsurance, ClaimedAmount: domain.NewAmount(48_000, 0)},
+				{Category: domain.DeductionMortgage, ClaimedAmount: domain.NewAmount(100_000, 0)},
+			},
+			wantAllowed:      []domain.Amount{domain.NewAmount(48_000, 0), domain.NewAmount(100_000, 0)},
+			wantTotalAllowed: domain.NewAmount(148_000, 0),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ComputeDeductions(tt.deductions, taxBase, c)
 			if len(result.AllowedAmounts) != len(tt.wantAllowed) {
 				t.Fatalf("AllowedAmounts length = %d, want %d", len(result.AllowedAmounts), len(tt.wantAllowed))
 			}
