@@ -110,6 +110,17 @@ cd frontend && npm test
 make coverage-frontend
 ```
 
+The production-sized migration test (`TestMultiCompanyMigrationProductionSized`)
+seeds ~22k rows into a v024 fixture and runs migration 025 end-to-end. It is
+gated behind the env var `ZFAKTURY_RUN_BIG_MIGRATION_TEST=1` so CI runs stay
+fast; enable it locally before merging schema changes that touch existing
+migrations:
+
+```bash
+ZFAKTURY_RUN_BIG_MIGRATION_TEST=1 CGO_ENABLED=0 go test ./internal/database \
+    -run TestMultiCompanyMigrationProductionSized -v -timeout 90s
+```
+
 ### Coverage
 
 Go backend test coverage is enforced at **80% minimum** via a pre-commit hook. Run `make install-hooks` after cloning to enable it.

@@ -10,6 +10,8 @@ import (
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
+
+	"github.com/zajca/zfaktury/internal/database/testseed"
 )
 
 //go:embed testdata/v024_seed.sql
@@ -236,12 +238,64 @@ func TestMultiCompanyMigration_AllPerCompanyTablesHaveColumn(t *testing.T) {
 // TestMultiCompanyMigrationProductionSized runs migration 025 against
 // a synthetic ~5k-invoice fixture and asserts completion under 30s.
 // Gated by the ZFAKTURY_RUN_BIG_MIGRATION_TEST environment variable
-// (see Phase 2 task 15) so it stays out of the default CI run.
+// so it stays out of the default CI run; enable locally before merging
+// schema changes that touch existing migrations.
 func TestMultiCompanyMigrationProductionSized(t *testing.T) {
 	if os.Getenv("ZFAKTURY_RUN_BIG_MIGRATION_TEST") == "" {
 		t.Skip("set ZFAKTURY_RUN_BIG_MIGRATION_TEST=1 to enable")
 	}
-	t.Skip("populated in Phase 2 task 15")
+
+	tmp := filepath.Join(t.TempDir(), "big.db")
+	db, err := sql.Open("sqlite", tmp+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	migrateUpTo(t, db, 24)
+	if err := testseed.SeedProductionSized(db); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	start := time.Now()
+	migrateUpTo(t, db, 25)
+	elapsed := time.Since(start)
+
+	if elapsed > 30*time.Second {
+		t.Errorf("migration took %s, want < 30s", elapsed)
+	}
+	t.Logf("migration 025 over ~5k invoices / ~10k items / ~5k expenses: %s", elapsed)
+
+	// Row counts unchanged after the migration's rebuild path.
+	for _, c := range []struct {
+		table string
+		want  int
+	}{
+		{"invoices", 5000},
+		{"invoice_items", 10000},
+		{"expenses", 5000},
+		{"contacts", 2500},
+	} {
+		var n int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM ` + c.table).Scan(&n); err != nil {
+			t.Fatalf("count %s: %v", c.table, err)
+		}
+		if n != c.want {
+			t.Errorf("%s count = %d, want %d", c.table, n, c.want)
+		}
+	}
+
+	// Composite FK still enforced under load: an item in company 2 cannot
+	// attach to an invoice in company 1.
+	if _, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '88888888', strftime('%Y-%m-%dT%H:%M:%SZ','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now'))`); err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO invoice_items (invoice_id, company_id, description, quantity, unit_price, vat_rate_percent, vat_amount, total_amount)
+		VALUES (1, 2, 'leak', 1, 1, 0, 0, 1)`)
+	if err == nil {
+		t.Error("expected composite FK violation under production-sized load")
+	}
 }
 
 func TestMultiCompanyMigration_CompositeFK_RejectsCrossCompanyInvoiceItem(t *testing.T) {
