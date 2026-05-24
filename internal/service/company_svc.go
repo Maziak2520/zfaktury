@@ -58,6 +58,9 @@ func (s *CompanyService) Create(ctx context.Context, c domain.Company) (int64, e
 
 // Get returns a company by ID.
 func (s *CompanyService) Get(ctx context.Context, id int64) (domain.Company, error) {
+	if id == 0 {
+		return domain.Company{}, fmt.Errorf("company ID is required: %w", domain.ErrInvalidInput)
+	}
 	c, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return domain.Company{}, fmt.Errorf("fetching company: %w", err)
@@ -79,11 +82,15 @@ func (s *CompanyService) Update(ctx context.Context, c domain.Company) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	existing, err := s.repo.GetByID(ctx, c.ID)
+	if err != nil {
+		return fmt.Errorf("fetching company for audit: %w", err)
+	}
 	if err := s.repo.Update(ctx, c); err != nil {
 		return fmt.Errorf("updating company: %w", err)
 	}
 	if s.audit != nil {
-		s.audit.Log(ctx, "company", c.ID, "update", nil, c)
+		s.audit.Log(ctx, "company", c.ID, "update", existing, c)
 	}
 	return nil
 }
@@ -96,6 +103,9 @@ func (s *CompanyService) Update(ctx context.Context, c domain.Company) error {
 //
 // The cheap last-company guard runs first to short-circuit checker queries.
 func (s *CompanyService) Delete(ctx context.Context, id int64) error {
+	if id == 0 {
+		return fmt.Errorf("company ID is required: %w", domain.ErrInvalidInput)
+	}
 	// Rule 1: cannot delete the last company.
 	n, err := s.repo.CountActive(ctx)
 	if err != nil {
@@ -103,6 +113,13 @@ func (s *CompanyService) Delete(ctx context.Context, id int64) error {
 	}
 	if n <= 1 {
 		return domain.ErrLastCompany
+	}
+
+	// Fetch for audit before any further work so we can log the deleted
+	// entity's identity (name/IČO) on success.
+	existing, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("fetching company: %w", err)
 	}
 
 	// Rule 2: cannot delete a company with any non-deleted children.
@@ -123,7 +140,7 @@ func (s *CompanyService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("soft-deleting company: %w", err)
 	}
 	if s.audit != nil {
-		s.audit.Log(ctx, "company", id, "delete", nil, nil)
+		s.audit.Log(ctx, "company", id, "delete", existing, nil)
 	}
 	return nil
 }

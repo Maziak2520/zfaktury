@@ -85,3 +85,11 @@ func TestCompanyService_Create_validates(t *testing.T) {
 		t.Errorf("err = %v, want ErrInvalidInput", err)
 	}
 }
+
+func TestCompanyService_Delete_rejectsZeroID(t *testing.T) {
+	svc := NewCompanyService(&stubCompanyRepo{countActive: 2}, nil, nil)
+	err := svc.Delete(context.Background(), 0)
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("err = %v, want ErrInvalidInput", err)
+	}
+}
