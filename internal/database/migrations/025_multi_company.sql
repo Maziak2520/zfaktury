@@ -21,7 +21,9 @@ CREATE TABLE companies (
 CREATE UNIQUE INDEX idx_companies_ico_active ON companies(ico) WHERE deleted_at IS NULL;
 
 -- 2. Seed the default company from existing settings.
--- The WHERE EXISTS guard makes fresh installs (empty settings) a no-op.
+-- The WHERE EXISTS guard requires an actual ICO in settings; fresh installs
+-- and partially-populated settings without ICO are no-ops (the frontend
+-- empty-state will route these users to /companies/new).
 INSERT INTO companies (
 	id, name, legal_name, ico, dic, vat_registered,
 	street, house_number, city, zip,
@@ -33,8 +35,8 @@ INSERT INTO companies (
 )
 SELECT
 	1,
-	COALESCE((SELECT value FROM settings WHERE key='company_name'), 'My Company'),
-	COALESCE((SELECT value FROM settings WHERE key='company_name'), 'My Company'),
+	COALESCE((SELECT value FROM settings WHERE key='company_name'), 'My Company'),  -- name
+	COALESCE((SELECT value FROM settings WHERE key='company_name'), 'My Company'),  -- legal_name: no legacy key; mirrors name
 	COALESCE((SELECT value FROM settings WHERE key='ico'), ''),
 	NULLIF((SELECT value FROM settings WHERE key='dic'), ''),
 	CASE WHEN COALESCE((SELECT value FROM settings WHERE key='vat_registered'), '0') = '1' THEN 1 ELSE 0 END,
@@ -52,9 +54,9 @@ SELECT
 	NULLIF((SELECT value FROM settings WHERE key='swift'), ''),
 	NULLIF((SELECT value FROM settings WHERE key='logo_path'), ''),
 	NULLIF((SELECT value FROM settings WHERE key='accent_color'), ''),
-	datetime('now'),
-	datetime('now')
-WHERE EXISTS (SELECT 1 FROM settings LIMIT 1);
+	strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+	strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'ico' AND value IS NOT NULL AND value != '');
 
 -- 3. Strip the 17 identity keys from settings (now lifted into companies).
 DELETE FROM settings WHERE key IN (

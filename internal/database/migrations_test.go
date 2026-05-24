@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -68,8 +69,9 @@ func TestMultiCompanyMigration_CreatesDefaultCompanyFromSettings(t *testing.T) {
 	var vat int
 	var accentColor sql.NullString
 	var logoPath sql.NullString
-	err := db.QueryRow(`SELECT name, ico, dic, vat_registered, accent_color, logo_path FROM companies WHERE id = 1`).
-		Scan(&name, &ico, &dic, &vat, &accentColor, &logoPath)
+	var createdAt, updatedAt string
+	err := db.QueryRow(`SELECT name, ico, dic, vat_registered, accent_color, logo_path, created_at, updated_at FROM companies WHERE id = 1`).
+		Scan(&name, &ico, &dic, &vat, &accentColor, &logoPath, &createdAt, &updatedAt)
 	if err != nil {
 		t.Fatalf("query company: %v", err)
 	}
@@ -81,6 +83,12 @@ func TestMultiCompanyMigration_CreatesDefaultCompanyFromSettings(t *testing.T) {
 	}
 	if logoPath.Valid {
 		t.Errorf("logo_path = %v, want NULL (empty string seeded; NULLIF should drop it)", logoPath)
+	}
+	if _, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		t.Errorf("created_at = %q does not parse as RFC3339: %v", createdAt, err)
+	}
+	if _, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		t.Errorf("updated_at = %q does not parse as RFC3339: %v", updatedAt, err)
 	}
 }
 
