@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { viesApi, pcUrl, type VIESSummary } from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
 	import { vatStatusLabels, filingTypeLabels, quarterLabels } from '$lib/utils/vat';
@@ -28,6 +28,8 @@
 	onMount(() => {
 		loadSummary();
 	});
+
+	onCompanyChange(() => loadSummary());
 
 	async function loadSummary() {
 		loading = true;

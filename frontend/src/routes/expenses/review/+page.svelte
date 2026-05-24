@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { expensesApi } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toastSuccess, toastError } from '$lib/data/toast-state.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
@@ -158,6 +159,8 @@
 	onMount(() => {
 		loadExpenses();
 	});
+
+	onCompanyChange(() => loadExpenses());
 </script>
 
 <svelte:head>

@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { contactsApi, type Contact } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import ErrorAlert from '$lib/ui/ErrorAlert.svelte';
@@ -44,11 +46,17 @@
 		}, 300);
 	}
 
-	$effect(() => {
+	let mounted = false;
+	onMount(() => {
 		loadContacts();
+		mounted = true;
 	});
 
+	onCompanyChange(() => loadContacts());
+
 	$effect(() => {
+		search;
+		if (!mounted) return;
 		handleSearch(search);
 	});
 

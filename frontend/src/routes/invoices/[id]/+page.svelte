@@ -13,7 +13,7 @@
 		type InvoiceStatusChange,
 		type InvoiceDocument
 	} from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toHalere, fromHalere } from '$lib/utils/money';
 	import { formatDate, toISODate } from '$lib/utils/date';
 	import type { FormItem } from '$lib/components/InvoiceItemsEditor.svelte';
@@ -78,6 +78,8 @@
 		if (!mounted) return;
 		loadInvoice();
 	});
+
+	onCompanyChange(() => loadInvoice());
 
 	async function loadInvoice() {
 		loading = true;

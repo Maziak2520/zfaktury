@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { vatReturnApi, pcUrl, type VATReturn } from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
 	import { vatStatusLabels, filingTypeLabels } from '$lib/utils/vat';
@@ -28,6 +28,8 @@
 	onMount(() => {
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 
 	async function loadData() {
 		loading = true;

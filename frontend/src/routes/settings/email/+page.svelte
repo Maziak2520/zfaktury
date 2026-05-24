@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { settingsApi, type Settings } from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import HelpTip from '$lib/ui/HelpTip.svelte';
 	import LoadingSpinner from '$lib/ui/LoadingSpinner.svelte';
@@ -18,6 +18,8 @@
 	onMount(() => {
 		loadSettings();
 	});
+
+	onCompanyChange(() => loadSettings());
 
 	async function loadSettings() {
 		loading = true;

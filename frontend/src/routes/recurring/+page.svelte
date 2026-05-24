@@ -4,6 +4,7 @@
 	import { formatDate } from '$lib/utils/date';
 	import { frequencyLabels } from '$lib/utils/invoice';
 	import { recurringInvoicesApi, type RecurringInvoice } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Badge from '$lib/ui/Badge.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
@@ -71,6 +72,8 @@
 	onMount(() => {
 		loadRecurringInvoices();
 	});
+
+	onCompanyChange(() => loadRecurringInvoices());
 </script>
 
 <svelte:head>

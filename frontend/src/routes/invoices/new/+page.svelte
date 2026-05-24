@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { contactsApi, invoicesApi, type Contact, type InvoiceItem } from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toHalere } from '$lib/utils/money';
 	import { toISODate, addDays } from '$lib/utils/date';
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -63,6 +63,8 @@
 	onMount(() => {
 		loadContacts();
 	});
+
+	onCompanyChange(() => loadContacts());
 
 	async function loadContacts() {
 		try {

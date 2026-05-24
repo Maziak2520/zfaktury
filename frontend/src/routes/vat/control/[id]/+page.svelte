@@ -8,7 +8,7 @@
 		type ControlStatement,
 		type ControlStatementLine
 	} from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
 	import { vatStatusLabels, filingTypeLabels } from '$lib/utils/vat';
@@ -48,6 +48,8 @@
 	onMount(() => {
 		loadStatement();
 	});
+
+	onCompanyChange(() => loadStatement());
 
 	async function loadStatement() {
 		loading = true;

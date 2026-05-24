@@ -8,6 +8,7 @@
 		type RecurringExpense,
 		type Contact
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK, toHalere, fromHalere } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
 	import { paymentMethodLabels, frequencyLabels } from '$lib/utils/invoice';
@@ -56,6 +57,8 @@
 	onMount(() => {
 		loadItem();
 	});
+
+	onCompanyChange(() => loadItem());
 
 	async function loadItem() {
 		loading = true;

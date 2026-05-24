@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { invoicesApi, statusHistoryApi, type Invoice } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
 	import {
@@ -77,6 +78,11 @@
 		statusFilter;
 		typeFilter;
 		if (!mounted) return;
+		page = 1;
+		loadInvoices();
+	});
+
+	onCompanyChange(() => {
 		page = 1;
 		loadInvoices();
 	});

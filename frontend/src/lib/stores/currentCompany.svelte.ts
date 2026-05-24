@@ -67,3 +67,31 @@ export function notifyIfSwitchedCompany(
 	);
 	return true;
 }
+
+// onCompanyChange wires a callback to fire whenever the active company id
+// actually changes -- not on the initial mount. Use inside a component's
+// script:
+//
+//   onMount(() => { loadData(); });
+//   onCompanyChange(() => loadData());
+//
+// The callback fires whenever currentCompany.current.id transitions to a new
+// value. It does NOT fire on the first effect run (so it pairs cleanly with
+// an onMount initial load).
+//
+// Must be called during component initialisation (it sets up an $effect).
+export function onCompanyChange(callback: () => void): void {
+	let known: number | null | undefined = undefined;
+	let initialised = false;
+	$effect(() => {
+		const id = currentCompany.current?.id;
+		if (!initialised) {
+			known = id;
+			initialised = true;
+			return;
+		}
+		if (id === known) return;
+		known = id;
+		callback();
+	});
+}

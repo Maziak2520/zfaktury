@@ -8,7 +8,7 @@
 		type RecurringInvoice,
 		type Contact
 	} from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatDate } from '$lib/utils/date';
 	import { formatCZK, toHalere, fromHalere } from '$lib/utils/money';
 	import { frequencyLabels, paymentMethodLabels } from '$lib/utils/invoice';
@@ -164,6 +164,8 @@
 	onMount(() => {
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 </script>
 
 <svelte:head>

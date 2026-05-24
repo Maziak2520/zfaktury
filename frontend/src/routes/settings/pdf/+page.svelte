@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { pdfSettingsApi, type PDFSettings } from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import LoadingSpinner from '$lib/ui/LoadingSpinner.svelte';
 	import ErrorAlert from '$lib/ui/ErrorAlert.svelte';
@@ -24,6 +24,8 @@
 	onMount(() => {
 		loadSettings();
 	});
+
+	onCompanyChange(() => loadSettings());
 
 	async function loadSettings() {
 		loading = true;

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { recurringExpensesApi, type RecurringExpense } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
 	import { frequencyLabels } from '$lib/utils/invoice';
@@ -62,6 +63,8 @@
 	onMount(() => {
 		loadItems();
 	});
+
+	onCompanyChange(() => loadItems());
 
 	let totalPages = $derived(Math.max(1, Math.ceil(total / perPage)));
 </script>

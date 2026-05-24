@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { incomeTaxApi, pcUrl, type IncomeTaxReturn, type TaxConstants } from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
@@ -41,6 +41,8 @@
 	onMount(() => {
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 
 	async function loadData() {
 		loading = true;

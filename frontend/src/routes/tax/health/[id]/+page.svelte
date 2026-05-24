@@ -7,7 +7,7 @@
 		type HealthInsuranceOverview,
 		type TaxConstants
 	} from '$lib/api/client';
-	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import Badge from '$lib/ui/Badge.svelte';
@@ -44,6 +44,8 @@
 	onMount(() => {
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 
 	async function loadData() {
 		loading = true;
