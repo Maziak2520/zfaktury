@@ -36,7 +36,7 @@ describe('Settings Email Page', () => {
 		render(Page);
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining('/api/v1/settings'),
+				expect.stringContaining('/api/v1/companies/1/settings'),
 				expect.any(Object)
 			);
 		});
@@ -63,7 +63,7 @@ describe('Settings Email Page', () => {
 		expect(isdocCheckbox.checked).toBe(false);
 	});
 
-	it('save calls settingsApi.update (PUT /api/v1/settings)', async () => {
+	it('save calls settingsApi.update (PUT /api/v1/companies/1/settings)', async () => {
 		render(Page);
 		await waitFor(() => {
 			expect(document.querySelector('#email_attach_pdf')).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('Settings Email Page', () => {
 			const putCall = mockFetch.mock.calls.find(
 				(call: any[]) =>
 					typeof call[0] === 'string' &&
-					call[0].includes('/api/v1/settings') &&
+					call[0].includes('/api/v1/companies/1/settings') &&
 					call[1]?.method === 'PUT'
 			);
 			expect(putCall).toBeDefined();
@@ -100,7 +100,7 @@ describe('Settings Email Page', () => {
 			const putCall = mockFetch.mock.calls.find(
 				(call: any[]) =>
 					typeof call[0] === 'string' &&
-					call[0].includes('/api/v1/settings') &&
+					call[0].includes('/api/v1/companies/1/settings') &&
 					call[1]?.method === 'PUT'
 			);
 			expect(putCall).toBeDefined();

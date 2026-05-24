@@ -37,11 +37,11 @@
 	async function processDue() {
 		processing = true;
 		try {
-			const data = await recurringInvoicesApi.processDue();
-			if (data.generated_count > 0) {
+			const result = await recurringInvoicesApi.processDue();
+			if (result.data.generated_count > 0) {
 				await loadRecurringInvoices();
 			}
-			toastSuccess(`Vygenerováno faktur: ${data.generated_count}`);
+			toastSuccess(`Vygenerováno faktur: ${result.data.generated_count}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se zpracovat splatné faktury');
 		} finally {

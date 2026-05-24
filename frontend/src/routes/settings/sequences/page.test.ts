@@ -46,7 +46,7 @@ describe('Sequences Settings Page', () => {
 		render(Page);
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining('/api/v1/invoice-sequences'),
+				expect.stringContaining('/api/v1/companies/1/invoice-sequences'),
 				expect.any(Object)
 			);
 		});
@@ -137,7 +137,7 @@ describe('Sequences Settings Page', () => {
 			const postCall = mockFetch.mock.calls.find(
 				(call: any[]) =>
 					typeof call[0] === 'string' &&
-					call[0].includes('/api/v1/invoice-sequences') &&
+					call[0].includes('/api/v1/companies/1/invoice-sequences') &&
 					call[1]?.method === 'POST'
 			);
 			expect(postCall).toBeDefined();
@@ -190,7 +190,7 @@ describe('Sequences Settings Page', () => {
 			const deleteCall = mockFetch.mock.calls.find(
 				(call: any[]) =>
 					typeof call[0] === 'string' &&
-					call[0].includes('/api/v1/invoice-sequences/') &&
+					call[0].includes('/api/v1/companies/1/invoice-sequences/') &&
 					call[1]?.method === 'DELETE'
 			);
 			expect(deleteCall).toBeDefined();

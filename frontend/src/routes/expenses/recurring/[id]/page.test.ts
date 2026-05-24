@@ -76,7 +76,7 @@ describe('Recurring expense detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/recurring-expenses/1',
+				'/api/v1/companies/1/recurring-expenses/1',
 				expect.objectContaining({ method: 'GET' })
 			);
 		});
@@ -114,7 +114,7 @@ describe('Recurring expense detail page', () => {
 		await waitFor(() => {
 			const deactivateCall = mockFetch.mock.calls.find(
 				(call) =>
-					(call[0] as string) === '/api/v1/recurring-expenses/1/deactivate' &&
+					(call[0] as string) === '/api/v1/companies/1/recurring-expenses/1/deactivate' &&
 					call[1]?.method === 'POST'
 			);
 			expect(deactivateCall).toBeTruthy();
@@ -165,7 +165,7 @@ describe('Recurring expense detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/recurring-expenses/1',
+				'/api/v1/companies/1/recurring-expenses/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});

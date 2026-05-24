@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { contactsApi, invoicesApi, type Contact, type InvoiceItem } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { toHalere } from '$lib/utils/money';
 	import { toISODate, addDays } from '$lib/utils/date';
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -100,7 +101,7 @@
 				};
 			});
 
-			await invoicesApi.create({
+			const result = await invoicesApi.create({
 				...form,
 				type: invoiceType,
 				status: 'draft',
@@ -109,6 +110,10 @@
 				total_amount: toHalere(grandTotal),
 				items: invoiceItems as InvoiceItem[]
 			});
+
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
 
 			toastSuccess('Faktura vytvořena');
 			goto('/invoices');

@@ -1,5 +1,7 @@
 // API client for ZFaktury backend
 
+import { currentCompany } from '$lib/stores/currentCompany.svelte';
+
 // --- Domain Types ---
 
 // Company is a tenant in the multi-company tier. Lives at /api/v1/companies
@@ -396,6 +398,115 @@ export function del<T>(path: string): Promise<T> {
 	return request<T>(path, { method: 'DELETE' });
 }
 
+// --- Per-Company URL Helpers ---
+
+// NoCompanyError is thrown when a per-company API method is invoked while
+// the currentCompany store has no active selection. UI layers should treat
+// this as a programming error — the root layout (Task 27) is responsible
+// for ensuring an active company exists before rendering routes that call
+// per-company endpoints.
+export class NoCompanyError extends Error {
+	constructor() {
+		super('no active company');
+		this.name = 'NoCompanyError';
+	}
+}
+
+// companyPrefix builds the /api/v1/companies/{id} prefix for the active
+// company. Throws NoCompanyError when no company is selected.
+export function companyPrefix(): string {
+	const id = currentCompany.current?.id;
+	if (!id) throw new NoCompanyError();
+	return `/api/v1/companies/${id}`;
+}
+
+// WriteResult wraps a write-method response so callers can detect when the
+// user switched the active company mid-flight (`submittedFor !== current.id`).
+// `respondedFor` is sourced from the X-Company-Id response header set by the
+// WithCompany middleware; it falls back to `submittedFor` when absent.
+export interface WriteResult<T> {
+	data: T;
+	submittedFor: number;
+	respondedFor: number;
+}
+
+// getPC issues a per-company GET. Returns the parsed JSON body, matching
+// the shape of the existing `get<T>` helper so call sites only need to
+// change the URL path, not the await pattern.
+export async function getPC<T>(path: string): Promise<T> {
+	const url = `${companyPrefix()}${path}`;
+	const response = await fetch(url, {
+		method: 'GET',
+		headers: { 'Content-Type': 'application/json' }
+	});
+	if (!response.ok) {
+		let body: unknown;
+		try {
+			body = await response.json();
+		} catch {
+			// non-JSON body
+		}
+		throw new ApiError(response.status, response.statusText, body);
+	}
+	if (response.status === 204) {
+		return undefined as T;
+	}
+	return response.json();
+}
+
+async function writePC<T>(
+	method: 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+	path: string,
+	body?: unknown
+): Promise<WriteResult<T>> {
+	const submittedFor = currentCompany.current?.id;
+	if (!submittedFor) throw new NoCompanyError();
+
+	const init: RequestInit = {
+		method,
+		headers: { 'Content-Type': 'application/json' }
+	};
+	if (body !== undefined) {
+		init.body = JSON.stringify(body);
+	}
+
+	const response = await fetch(`/api/v1/companies/${submittedFor}${path}`, init);
+
+	if (!response.ok) {
+		let errBody: unknown;
+		try {
+			errBody = await response.json();
+		} catch {
+			// non-JSON body
+		}
+		throw new ApiError(response.status, response.statusText, errBody);
+	}
+
+	const respondedForHeader = response.headers.get('X-Company-Id');
+	const respondedFor = respondedForHeader ? Number(respondedForHeader) : submittedFor;
+	const data = response.status === 204 ? (undefined as T) : await response.json();
+	return { data, submittedFor, respondedFor: Number.isFinite(respondedFor) ? respondedFor : submittedFor };
+}
+
+export function postPC<T>(path: string, body?: unknown): Promise<WriteResult<T>> {
+	return writePC<T>('POST', path, body ?? {});
+}
+
+export function putPC<T>(path: string, body: unknown): Promise<WriteResult<T>> {
+	return writePC<T>('PUT', path, body);
+}
+
+export function delPC<T>(path: string): Promise<WriteResult<T>> {
+	return writePC<T>('DELETE', path);
+}
+
+// pcUrl builds a fully-qualified per-company URL (no API_BASE prefix needed
+// by callers). Used by endpoints that return a URL string for the browser
+// to follow directly — PDF downloads, logo files, QR codes, exports, etc.
+export function pcUrl(path: string): string {
+	return `${companyPrefix()}${path}`;
+}
+
 // --- Companies API ---
 
 // Global tier — these URLs build /api/v1/companies directly (no /companies/{id}
@@ -442,27 +553,27 @@ export const contactsApi = {
 		if (params?.offset) query.set('offset', String(params.offset));
 		if (params?.search) query.set('search', params.search);
 		const qs = query.toString();
-		return get<ListResponse<Contact>>(`/contacts${qs ? `?${qs}` : ''}`);
+		return getPC<ListResponse<Contact>>(`/contacts${qs ? `?${qs}` : ''}`);
 	},
 
 	getById(id: number) {
-		return get<Contact>(`/contacts/${id}`);
+		return getPC<Contact>(`/contacts/${id}`);
 	},
 
 	create(data: Partial<Contact>) {
-		return post<Contact>('/contacts', data);
+		return postPC<Contact>('/contacts', data);
 	},
 
 	update(id: number, data: Partial<Contact>) {
-		return put<Contact>(`/contacts/${id}`, data);
+		return putPC<Contact>(`/contacts/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/contacts/${id}`);
+		return delPC<void>(`/contacts/${id}`);
 	},
 
 	lookupAres(ico: string) {
-		return get<AresResult>(`/contacts/ares/${ico}`);
+		return getPC<AresResult>(`/contacts/ares/${ico}`);
 	}
 };
 
@@ -483,66 +594,66 @@ export const invoicesApi = {
 		if (params?.status) query.set('status', params.status);
 		if (params?.type) query.set('type', params.type);
 		const qs = query.toString();
-		return get<ListResponse<Invoice>>(`/invoices${qs ? `?${qs}` : ''}`);
+		return getPC<ListResponse<Invoice>>(`/invoices${qs ? `?${qs}` : ''}`);
 	},
 
 	getById(id: number) {
-		return get<Invoice>(`/invoices/${id}`);
+		return getPC<Invoice>(`/invoices/${id}`);
 	},
 
 	create(data: Partial<Invoice>) {
-		return post<Invoice>('/invoices', data);
+		return postPC<Invoice>('/invoices', data);
 	},
 
 	update(id: number, data: Partial<Invoice>) {
-		return put<Invoice>(`/invoices/${id}`, data);
+		return putPC<Invoice>(`/invoices/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/invoices/${id}`);
+		return delPC<void>(`/invoices/${id}`);
 	},
 
 	send(id: number) {
-		return post<Invoice>(`/invoices/${id}/send`, {});
+		return postPC<Invoice>(`/invoices/${id}/send`, {});
 	},
 
 	markPaid(id: number, amount?: number, paidAt?: string) {
-		return post<Invoice>(`/invoices/${id}/mark-paid`, { amount, paid_at: paidAt });
+		return postPC<Invoice>(`/invoices/${id}/mark-paid`, { amount, paid_at: paidAt });
 	},
 
 	duplicate(id: number) {
-		return post<Invoice>(`/invoices/${id}/duplicate`, {});
+		return postPC<Invoice>(`/invoices/${id}/duplicate`, {});
 	},
 
 	settle(id: number) {
-		return post<Invoice>(`/invoices/${id}/settle`, {});
+		return postPC<Invoice>(`/invoices/${id}/settle`, {});
 	},
 
 	createCreditNote(id: number, data: CreditNoteRequest) {
-		return post<Invoice>(`/invoices/${id}/credit-note`, data);
+		return postPC<Invoice>(`/invoices/${id}/credit-note`, data);
 	},
 
 	getPdfUrl(id: number): string {
-		return `${API_BASE}/invoices/${id}/pdf`;
+		return pcUrl(`/invoices/${id}/pdf`);
 	},
 
 	getQrUrl(id: number): string {
-		return `${API_BASE}/invoices/${id}/qr`;
+		return pcUrl(`/invoices/${id}/qr`);
 	},
 
 	getIsdocUrl(id: number): string {
-		return `${API_BASE}/invoices/${id}/isdoc`;
+		return pcUrl(`/invoices/${id}/isdoc`);
 	},
 
 	sendEmail(
 		id: number,
 		data: { to: string; subject: string; body: string; attach_pdf: boolean; attach_isdoc: boolean }
 	) {
-		return post<{ status: string }>(`/invoices/${id}/send-email`, data);
+		return postPC<{ status: string }>(`/invoices/${id}/send-email`, data);
 	},
 
 	async exportIsdocBatch(invoiceIds: number[]): Promise<Blob> {
-		const url = `${API_BASE}/invoices/export/isdoc`;
+		const url = pcUrl(`/invoices/export/isdoc`);
 		const response = await fetch(url, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -569,7 +680,7 @@ export interface EmailDefaults {
 export const emailApi = {
 	getDefaults(invoiceNumber: string) {
 		const query = new URLSearchParams({ invoice_number: invoiceNumber });
-		return get<EmailDefaults>(`/email/defaults?${query.toString()}`);
+		return getPC<EmailDefaults>(`/email/defaults?${query.toString()}`);
 	}
 };
 
@@ -592,31 +703,31 @@ export const expensesApi = {
 		if (params?.date_to) query.set('date_to', params.date_to);
 		if (params?.tax_reviewed) query.set('tax_reviewed', params.tax_reviewed);
 		const qs = query.toString();
-		return get<ListResponse<Expense>>(`/expenses${qs ? `?${qs}` : ''}`);
+		return getPC<ListResponse<Expense>>(`/expenses${qs ? `?${qs}` : ''}`);
 	},
 
 	getById(id: number) {
-		return get<Expense>(`/expenses/${id}`);
+		return getPC<Expense>(`/expenses/${id}`);
 	},
 
 	create(data: Partial<Expense>) {
-		return post<Expense>('/expenses', data);
+		return postPC<Expense>('/expenses', data);
 	},
 
 	update(id: number, data: Partial<Expense>) {
-		return put<Expense>(`/expenses/${id}`, data);
+		return putPC<Expense>(`/expenses/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/expenses/${id}`);
+		return delPC<void>(`/expenses/${id}`);
 	},
 
 	markTaxReviewed(ids: number[]) {
-		return post<void>('/expenses/review', { ids });
+		return postPC<void>('/expenses/review', { ids });
 	},
 
 	unmarkTaxReviewed(ids: number[]) {
-		return post<void>('/expenses/unreview', { ids });
+		return postPC<void>('/expenses/unreview', { ids });
 	}
 };
 
@@ -624,23 +735,23 @@ export const expensesApi = {
 
 export const sequencesApi = {
 	list() {
-		return get<InvoiceSequence[]>('/invoice-sequences');
+		return getPC<InvoiceSequence[]>('/invoice-sequences');
 	},
 
 	getById(id: number) {
-		return get<InvoiceSequence>(`/invoice-sequences/${id}`);
+		return getPC<InvoiceSequence>(`/invoice-sequences/${id}`);
 	},
 
 	create(data: Partial<InvoiceSequence>) {
-		return post<InvoiceSequence>('/invoice-sequences', data);
+		return postPC<InvoiceSequence>('/invoice-sequences', data);
 	},
 
 	update(id: number, data: Partial<InvoiceSequence>) {
-		return put<InvoiceSequence>(`/invoice-sequences/${id}`, data);
+		return putPC<InvoiceSequence>(`/invoice-sequences/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/invoice-sequences/${id}`);
+		return delPC<void>(`/invoice-sequences/${id}`);
 	}
 };
 
@@ -648,19 +759,19 @@ export const sequencesApi = {
 
 export const categoriesApi = {
 	list() {
-		return get<ExpenseCategory[]>('/expense-categories');
+		return getPC<ExpenseCategory[]>('/expense-categories');
 	},
 
 	create(data: Partial<ExpenseCategory>) {
-		return post<ExpenseCategory>('/expense-categories', data);
+		return postPC<ExpenseCategory>('/expense-categories', data);
 	},
 
 	update(id: number, data: Partial<ExpenseCategory>) {
-		return put<ExpenseCategory>(`/expense-categories/${id}`, data);
+		return putPC<ExpenseCategory>(`/expense-categories/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/expense-categories/${id}`);
+		return delPC<void>(`/expense-categories/${id}`);
 	}
 };
 
@@ -668,17 +779,22 @@ export const categoriesApi = {
 
 export const documentsApi = {
 	listByExpense(expenseId: number) {
-		return get<ExpenseDocument[]>(`/expenses/${expenseId}/documents`);
+		return getPC<ExpenseDocument[]>(`/expenses/${expenseId}/documents`);
 	},
 
 	getById(id: number) {
-		return get<ExpenseDocument>(`/documents/${id}`);
+		return getPC<ExpenseDocument>(`/documents/${id}`);
 	},
 
-	async upload(expenseId: number, file: File): Promise<ExpenseDocument> {
+	// upload returns a WriteResult so callers can detect mid-flight company
+	// switches. The multipart body bypasses the JSON writePC helper but the
+	// race-detection shape is preserved.
+	async upload(expenseId: number, file: File): Promise<WriteResult<ExpenseDocument>> {
+		const submittedFor = currentCompany.current?.id;
+		if (!submittedFor) throw new NoCompanyError();
 		const formData = new FormData();
 		formData.append('file', file);
-		const url = `${API_BASE}/expenses/${expenseId}/documents`;
+		const url = `/api/v1/companies/${submittedFor}/expenses/${expenseId}/documents`;
 		const response = await fetch(url, { method: 'POST', body: formData });
 		if (!response.ok) {
 			let body: unknown;
@@ -689,15 +805,22 @@ export const documentsApi = {
 			}
 			throw new ApiError(response.status, response.statusText, body);
 		}
-		return response.json();
+		const respondedForHeader = response.headers.get('X-Company-Id');
+		const respondedFor = respondedForHeader ? Number(respondedForHeader) : submittedFor;
+		const data = (await response.json()) as ExpenseDocument;
+		return {
+			data,
+			submittedFor,
+			respondedFor: Number.isFinite(respondedFor) ? respondedFor : submittedFor
+		};
 	},
 
 	getDownloadUrl(id: number): string {
-		return `${API_BASE}/documents/${id}/download`;
+		return pcUrl(`/documents/${id}/download`);
 	},
 
 	delete(id: number) {
-		return del<void>(`/documents/${id}`);
+		return delPC<void>(`/documents/${id}`);
 	}
 };
 
@@ -705,11 +828,11 @@ export const documentsApi = {
 
 export const settingsApi = {
 	getAll() {
-		return get<Settings>('/settings');
+		return getPC<Settings>('/settings');
 	},
 
 	update(settings: Settings) {
-		return put<Settings>('/settings', settings);
+		return putPC<Settings>('/settings', settings);
 	}
 };
 
@@ -717,31 +840,31 @@ export const settingsApi = {
 
 export const recurringInvoicesApi = {
 	list() {
-		return get<RecurringInvoice[]>('/recurring-invoices');
+		return getPC<RecurringInvoice[]>('/recurring-invoices');
 	},
 
 	getById(id: number) {
-		return get<RecurringInvoice>(`/recurring-invoices/${id}`);
+		return getPC<RecurringInvoice>(`/recurring-invoices/${id}`);
 	},
 
 	create(data: Partial<RecurringInvoice>) {
-		return post<RecurringInvoice>('/recurring-invoices', data);
+		return postPC<RecurringInvoice>('/recurring-invoices', data);
 	},
 
 	update(id: number, data: Partial<RecurringInvoice>) {
-		return put<RecurringInvoice>(`/recurring-invoices/${id}`, data);
+		return putPC<RecurringInvoice>(`/recurring-invoices/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/recurring-invoices/${id}`);
+		return delPC<void>(`/recurring-invoices/${id}`);
 	},
 
 	generate(id: number) {
-		return post<Invoice>(`/recurring-invoices/${id}/generate`, {});
+		return postPC<Invoice>(`/recurring-invoices/${id}/generate`, {});
 	},
 
 	processDue() {
-		return post<{ generated_count: number }>('/recurring-invoices/process-due', {});
+		return postPC<{ generated_count: number }>('/recurring-invoices/process-due', {});
 	}
 };
 
@@ -753,35 +876,35 @@ export const recurringExpensesApi = {
 		if (params?.limit) query.set('limit', String(params.limit));
 		if (params?.offset) query.set('offset', String(params.offset));
 		const qs = query.toString();
-		return get<ListResponse<RecurringExpense>>(`/recurring-expenses${qs ? `?${qs}` : ''}`);
+		return getPC<ListResponse<RecurringExpense>>(`/recurring-expenses${qs ? `?${qs}` : ''}`);
 	},
 
 	getById(id: number) {
-		return get<RecurringExpense>(`/recurring-expenses/${id}`);
+		return getPC<RecurringExpense>(`/recurring-expenses/${id}`);
 	},
 
 	create(data: Partial<RecurringExpense>) {
-		return post<RecurringExpense>('/recurring-expenses', data);
+		return postPC<RecurringExpense>('/recurring-expenses', data);
 	},
 
 	update(id: number, data: Partial<RecurringExpense>) {
-		return put<RecurringExpense>(`/recurring-expenses/${id}`, data);
+		return putPC<RecurringExpense>(`/recurring-expenses/${id}`, data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/recurring-expenses/${id}`);
+		return delPC<void>(`/recurring-expenses/${id}`);
 	},
 
 	activate(id: number) {
-		return post<void>(`/recurring-expenses/${id}/activate`, {});
+		return postPC<void>(`/recurring-expenses/${id}/activate`, {});
 	},
 
 	deactivate(id: number) {
-		return post<void>(`/recurring-expenses/${id}/deactivate`, {});
+		return postPC<void>(`/recurring-expenses/${id}/deactivate`, {});
 	},
 
 	generate(asOfDate?: string) {
-		return post<{ generated: number }>('/recurring-expenses/generate', {
+		return postPC<{ generated: number }>('/recurring-expenses/generate', {
 			as_of_date: asOfDate || ''
 		});
 	}
@@ -796,10 +919,15 @@ export interface ImportResponse {
 }
 
 export const importApi = {
-	async importDocument(file: File): Promise<ImportResponse> {
+	// importDocument returns a WriteResult so callers can detect mid-flight
+	// company switches and avoid redirecting to a detail page that belongs
+	// to the wrong tenant.
+	async importDocument(file: File): Promise<WriteResult<ImportResponse>> {
+		const submittedFor = currentCompany.current?.id;
+		if (!submittedFor) throw new NoCompanyError();
 		const formData = new FormData();
 		formData.append('file', file);
-		const url = `${API_BASE}/expenses/import`;
+		const url = `/api/v1/companies/${submittedFor}/expenses/import`;
 		const response = await fetch(url, { method: 'POST', body: formData });
 		if (!response.ok) {
 			let body: unknown;
@@ -810,7 +938,14 @@ export const importApi = {
 			}
 			throw new ApiError(response.status, response.statusText, body);
 		}
-		return response.json();
+		const respondedForHeader = response.headers.get('X-Company-Id');
+		const respondedFor = respondedForHeader ? Number(respondedForHeader) : submittedFor;
+		const data = (await response.json()) as ImportResponse;
+		return {
+			data,
+			submittedFor,
+			respondedFor: Number.isFinite(respondedFor) ? respondedFor : submittedFor
+		};
 	}
 };
 
@@ -818,7 +953,7 @@ export const importApi = {
 
 export const ocrApi = {
 	processDocument(documentId: number) {
-		return post<OCRResult>(`/documents/${documentId}/ocr`, {});
+		return postPC<OCRResult>(`/documents/${documentId}/ocr`, {});
 	}
 };
 
@@ -865,11 +1000,11 @@ export interface InvoiceStatusChange {
 
 export const statusHistoryApi = {
 	getHistory(invoiceId: number) {
-		return get<InvoiceStatusChange[]>(`/invoices/${invoiceId}/history`);
+		return getPC<InvoiceStatusChange[]>(`/invoices/${invoiceId}/history`);
 	},
 
 	checkOverdue() {
-		return post<{ marked: number }>('/invoices/check-overdue', {});
+		return postPC<{ marked: number }>('/invoices/check-overdue', {});
 	}
 };
 
@@ -888,11 +1023,11 @@ export interface PaymentReminder {
 
 export const remindersApi = {
 	sendReminder(invoiceId: number) {
-		return post<PaymentReminder>(`/invoices/${invoiceId}/remind`, {});
+		return postPC<PaymentReminder>(`/invoices/${invoiceId}/remind`, {});
 	},
 
 	listReminders(invoiceId: number) {
-		return get<PaymentReminder[]>(`/invoices/${invoiceId}/reminders`);
+		return getPC<PaymentReminder[]>(`/invoices/${invoiceId}/reminders`);
 	}
 };
 
@@ -979,11 +1114,11 @@ export interface VIESSummary {
 export const vatReturnApi = {
 	list(year?: number): Promise<VATReturn[]> {
 		const query = year ? `?year=${year}` : '';
-		return get<VATReturn[]>(`/vat-returns${query}`);
+		return getPC<VATReturn[]>(`/vat-returns${query}`);
 	},
 
 	getById(id: number): Promise<VATReturn> {
-		return get<VATReturn>(`/vat-returns/${id}`);
+		return getPC<VATReturn>(`/vat-returns/${id}`);
 	},
 
 	create(data: {
@@ -991,24 +1126,24 @@ export const vatReturnApi = {
 		month?: number;
 		quarter?: number;
 		filing_type?: string;
-	}): Promise<VATReturn> {
-		return post<VATReturn>('/vat-returns', data);
+	}): Promise<WriteResult<VATReturn>> {
+		return postPC<VATReturn>('/vat-returns', data);
 	},
 
-	delete(id: number): Promise<void> {
-		return del(`/vat-returns/${id}`);
+	delete(id: number): Promise<WriteResult<void>> {
+		return delPC<void>(`/vat-returns/${id}`);
 	},
 
-	recalculate(id: number): Promise<VATReturn> {
-		return post<VATReturn>(`/vat-returns/${id}/recalculate`, {});
+	recalculate(id: number): Promise<WriteResult<VATReturn>> {
+		return postPC<VATReturn>(`/vat-returns/${id}/recalculate`, {});
 	},
 
-	generateXml(id: number): Promise<VATReturn> {
-		return post<VATReturn>(`/vat-returns/${id}/generate-xml`, {});
+	generateXml(id: number): Promise<WriteResult<VATReturn>> {
+		return postPC<VATReturn>(`/vat-returns/${id}/generate-xml`, {});
 	},
 
-	markFiled(id: number): Promise<VATReturn> {
-		return post<VATReturn>(`/vat-returns/${id}/mark-filed`, {});
+	markFiled(id: number): Promise<WriteResult<VATReturn>> {
+		return postPC<VATReturn>(`/vat-returns/${id}/mark-filed`, {});
 	}
 };
 
@@ -1017,31 +1152,31 @@ export const vatReturnApi = {
 export const controlStatementApi = {
 	list(year?: number) {
 		const query = year ? `?year=${year}` : '';
-		return get<ControlStatement[]>(`/vat-control-statements${query}`);
+		return getPC<ControlStatement[]>(`/vat-control-statements${query}`);
 	},
 
 	getById(id: number) {
-		return get<ControlStatement>(`/vat-control-statements/${id}`);
+		return getPC<ControlStatement>(`/vat-control-statements/${id}`);
 	},
 
 	create(data: { year: number; month: number; filing_type?: string }) {
-		return post<ControlStatement>('/vat-control-statements', data);
+		return postPC<ControlStatement>('/vat-control-statements', data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/vat-control-statements/${id}`);
+		return delPC<void>(`/vat-control-statements/${id}`);
 	},
 
 	recalculate(id: number) {
-		return post<ControlStatement>(`/vat-control-statements/${id}/recalculate`);
+		return postPC<ControlStatement>(`/vat-control-statements/${id}/recalculate`);
 	},
 
 	generateXml(id: number) {
-		return post<ControlStatement>(`/vat-control-statements/${id}/generate-xml`);
+		return postPC<ControlStatement>(`/vat-control-statements/${id}/generate-xml`);
 	},
 
 	markFiled(id: number) {
-		return post<ControlStatement>(`/vat-control-statements/${id}/mark-filed`);
+		return postPC<ControlStatement>(`/vat-control-statements/${id}/mark-filed`);
 	}
 };
 
@@ -1050,31 +1185,31 @@ export const controlStatementApi = {
 export const viesApi = {
 	list(year?: number) {
 		const query = year ? `?year=${year}` : '';
-		return get<VIESSummary[]>(`/vies-summaries${query}`);
+		return getPC<VIESSummary[]>(`/vies-summaries${query}`);
 	},
 
 	getById(id: number) {
-		return get<VIESSummary>(`/vies-summaries/${id}`);
+		return getPC<VIESSummary>(`/vies-summaries/${id}`);
 	},
 
 	create(data: { year: number; quarter: number; filing_type?: string }) {
-		return post<VIESSummary>('/vies-summaries', data);
+		return postPC<VIESSummary>('/vies-summaries', data);
 	},
 
 	delete(id: number) {
-		return del<void>(`/vies-summaries/${id}`);
+		return delPC<void>(`/vies-summaries/${id}`);
 	},
 
 	recalculate(id: number) {
-		return post<VIESSummary>(`/vies-summaries/${id}/recalculate`);
+		return postPC<VIESSummary>(`/vies-summaries/${id}/recalculate`);
 	},
 
 	generateXml(id: number) {
-		return post<VIESSummary>(`/vies-summaries/${id}/generate-xml`);
+		return postPC<VIESSummary>(`/vies-summaries/${id}/generate-xml`);
 	},
 
 	markFiled(id: number) {
-		return post<VIESSummary>(`/vies-summaries/${id}/mark-filed`);
+		return postPC<VIESSummary>(`/vies-summaries/${id}/mark-filed`);
 	}
 };
 
@@ -1168,25 +1303,25 @@ export interface HealthInsuranceOverview {
 export const incomeTaxApi = {
 	list(year?: number) {
 		const query = year ? `?year=${year}` : '';
-		return get<IncomeTaxReturn[]>(`/income-tax-returns${query}`);
+		return getPC<IncomeTaxReturn[]>(`/income-tax-returns${query}`);
 	},
 	getById(id: number) {
-		return get<IncomeTaxReturn>(`/income-tax-returns/${id}`);
+		return getPC<IncomeTaxReturn>(`/income-tax-returns/${id}`);
 	},
 	create(data: { year: number; filing_type?: string }) {
-		return post<IncomeTaxReturn>('/income-tax-returns', data);
+		return postPC<IncomeTaxReturn>('/income-tax-returns', data);
 	},
 	delete(id: number) {
-		return del<void>(`/income-tax-returns/${id}`);
+		return delPC<void>(`/income-tax-returns/${id}`);
 	},
 	recalculate(id: number) {
-		return post<IncomeTaxReturn>(`/income-tax-returns/${id}/recalculate`, {});
+		return postPC<IncomeTaxReturn>(`/income-tax-returns/${id}/recalculate`, {});
 	},
 	generateXml(id: number) {
-		return post<IncomeTaxReturn>(`/income-tax-returns/${id}/generate-xml`, {});
+		return postPC<IncomeTaxReturn>(`/income-tax-returns/${id}/generate-xml`, {});
 	},
 	markFiled(id: number) {
-		return post<IncomeTaxReturn>(`/income-tax-returns/${id}/mark-filed`, {});
+		return postPC<IncomeTaxReturn>(`/income-tax-returns/${id}/mark-filed`, {});
 	}
 };
 
@@ -1195,25 +1330,25 @@ export const incomeTaxApi = {
 export const socialInsuranceApi = {
 	list(year?: number) {
 		const query = year ? `?year=${year}` : '';
-		return get<SocialInsuranceOverview[]>(`/social-insurance${query}`);
+		return getPC<SocialInsuranceOverview[]>(`/social-insurance${query}`);
 	},
 	getById(id: number) {
-		return get<SocialInsuranceOverview>(`/social-insurance/${id}`);
+		return getPC<SocialInsuranceOverview>(`/social-insurance/${id}`);
 	},
 	create(data: { year: number; filing_type?: string }) {
-		return post<SocialInsuranceOverview>('/social-insurance', data);
+		return postPC<SocialInsuranceOverview>('/social-insurance', data);
 	},
 	delete(id: number) {
-		return del<void>(`/social-insurance/${id}`);
+		return delPC<void>(`/social-insurance/${id}`);
 	},
 	recalculate(id: number) {
-		return post<SocialInsuranceOverview>(`/social-insurance/${id}/recalculate`, {});
+		return postPC<SocialInsuranceOverview>(`/social-insurance/${id}/recalculate`, {});
 	},
 	generateXml(id: number) {
-		return post<SocialInsuranceOverview>(`/social-insurance/${id}/generate-xml`, {});
+		return postPC<SocialInsuranceOverview>(`/social-insurance/${id}/generate-xml`, {});
 	},
 	markFiled(id: number) {
-		return post<SocialInsuranceOverview>(`/social-insurance/${id}/mark-filed`, {});
+		return postPC<SocialInsuranceOverview>(`/social-insurance/${id}/mark-filed`, {});
 	}
 };
 
@@ -1222,25 +1357,25 @@ export const socialInsuranceApi = {
 export const healthInsuranceApi = {
 	list(year?: number) {
 		const query = year ? `?year=${year}` : '';
-		return get<HealthInsuranceOverview[]>(`/health-insurance${query}`);
+		return getPC<HealthInsuranceOverview[]>(`/health-insurance${query}`);
 	},
 	getById(id: number) {
-		return get<HealthInsuranceOverview>(`/health-insurance/${id}`);
+		return getPC<HealthInsuranceOverview>(`/health-insurance/${id}`);
 	},
 	create(data: { year: number; filing_type?: string }) {
-		return post<HealthInsuranceOverview>('/health-insurance', data);
+		return postPC<HealthInsuranceOverview>('/health-insurance', data);
 	},
 	delete(id: number) {
-		return del<void>(`/health-insurance/${id}`);
+		return delPC<void>(`/health-insurance/${id}`);
 	},
 	recalculate(id: number) {
-		return post<HealthInsuranceOverview>(`/health-insurance/${id}/recalculate`, {});
+		return postPC<HealthInsuranceOverview>(`/health-insurance/${id}/recalculate`, {});
 	},
 	generateXml(id: number) {
-		return post<HealthInsuranceOverview>(`/health-insurance/${id}/generate-xml`, {});
+		return postPC<HealthInsuranceOverview>(`/health-insurance/${id}/generate-xml`, {});
 	},
 	markFiled(id: number) {
-		return post<HealthInsuranceOverview>(`/health-insurance/${id}/mark-filed`, {});
+		return postPC<HealthInsuranceOverview>(`/health-insurance/${id}/mark-filed`, {});
 	}
 };
 
@@ -1271,7 +1406,7 @@ export interface TaxConstants {
 
 export const taxConstantsApi = {
 	getByYear(year: number) {
-		return get<TaxConstants>(`/tax-constants/${year}`);
+		return getPC<TaxConstants>(`/tax-constants/${year}`);
 	}
 };
 
@@ -1294,10 +1429,10 @@ export interface TaxPrepaymentMonth {
 
 export const taxYearSettingsApi = {
 	getByYear(year: number) {
-		return get<TaxYearSettings>(`/tax-year-settings/${year}`);
+		return getPC<TaxYearSettings>(`/tax-year-settings/${year}`);
 	},
 	save(year: number, data: { flat_rate_percent: number; prepayments: TaxPrepaymentMonth[] }) {
-		return put<void>(`/tax-year-settings/${year}`, data);
+		return putPC<void>(`/tax-year-settings/${year}`, data);
 	}
 };
 
@@ -1383,7 +1518,7 @@ export interface TaxExtractionResult {
 
 export const taxCreditsApi = {
 	getSummary(year: number) {
-		return get<TaxCreditsSummary>(`/tax-credits/${year}`);
+		return getPC<TaxCreditsSummary>(`/tax-credits/${year}`);
 	},
 	upsertSpouse(
 		year: number,
@@ -1395,13 +1530,13 @@ export const taxCreditsApi = {
 			months_claimed: number;
 		}
 	) {
-		return put<TaxSpouseCredit>(`/tax-credits/${year}/spouse`, data);
+		return putPC<TaxSpouseCredit>(`/tax-credits/${year}/spouse`, data);
 	},
 	deleteSpouse(year: number) {
-		return del<void>(`/tax-credits/${year}/spouse`);
+		return delPC<void>(`/tax-credits/${year}/spouse`);
 	},
 	listChildren(year: number) {
-		return get<TaxChildCredit[]>(`/tax-credits/${year}/children`);
+		return getPC<TaxChildCredit[]>(`/tax-credits/${year}/children`);
 	},
 	createChild(
 		year: number,
@@ -1413,7 +1548,7 @@ export const taxCreditsApi = {
 			ztp: boolean;
 		}
 	) {
-		return post<TaxChildCredit>(`/tax-credits/${year}/children`, data);
+		return postPC<TaxChildCredit>(`/tax-credits/${year}/children`, data);
 	},
 	updateChild(
 		year: number,
@@ -1426,19 +1561,19 @@ export const taxCreditsApi = {
 			ztp: boolean;
 		}
 	) {
-		return put<TaxChildCredit>(`/tax-credits/${year}/children/${id}`, data);
+		return putPC<TaxChildCredit>(`/tax-credits/${year}/children/${id}`, data);
 	},
 	deleteChild(year: number, id: number) {
-		return del<void>(`/tax-credits/${year}/children/${id}`);
+		return delPC<void>(`/tax-credits/${year}/children/${id}`);
 	},
 	upsertPersonal(
 		year: number,
 		data: { is_student: boolean; student_months: number; disability_level: number }
 	) {
-		return put<TaxPersonalCredits>(`/tax-credits/${year}/personal`, data);
+		return putPC<TaxPersonalCredits>(`/tax-credits/${year}/personal`, data);
 	},
 	copyFromYear(year: number, sourceYear: number) {
-		return post<void>(`/tax-credits/${year}/copy-from/${sourceYear}`, {});
+		return postPC<void>(`/tax-credits/${year}/copy-from/${sourceYear}`, {});
 	}
 };
 
@@ -1446,32 +1581,35 @@ export const taxCreditsApi = {
 
 export const taxDeductionsApi = {
 	list(year: number) {
-		return get<TaxDeduction[]>(`/tax-deductions/${year}`);
+		return getPC<TaxDeduction[]>(`/tax-deductions/${year}`);
 	},
 	create(year: number, data: { category: string; description: string; claimed_amount: number }) {
-		return post<TaxDeduction>(`/tax-deductions/${year}`, data);
+		return postPC<TaxDeduction>(`/tax-deductions/${year}`, data);
 	},
 	update(
 		year: number,
 		id: number,
 		data: { category: string; description: string; claimed_amount: number }
 	) {
-		return put<TaxDeduction>(`/tax-deductions/${year}/${id}`, data);
+		return putPC<TaxDeduction>(`/tax-deductions/${year}/${id}`, data);
 	},
 	delete(year: number, id: number) {
-		return del<void>(`/tax-deductions/${year}/${id}`);
+		return delPC<void>(`/tax-deductions/${year}/${id}`);
 	},
 	listDocuments(year: number, deductionId: number) {
-		return get<TaxDeductionDocument[]>(`/tax-deductions/${year}/${deductionId}/documents`);
+		return getPC<TaxDeductionDocument[]>(`/tax-deductions/${year}/${deductionId}/documents`);
 	},
 	async uploadDocument(
 		year: number,
 		deductionId: number,
 		file: File
-	): Promise<TaxDeductionDocument> {
+	): Promise<WriteResult<TaxDeductionDocument>> {
+		const submittedFor = currentCompany.current?.id;
+		if (!submittedFor) throw new NoCompanyError();
 		const formData = new FormData();
 		formData.append('file', file);
-		const response = await fetch(`${API_BASE}/tax-deductions/${year}/${deductionId}/documents`, {
+		const url = `/api/v1/companies/${submittedFor}/tax-deductions/${year}/${deductionId}/documents`;
+		const response = await fetch(url, {
 			method: 'POST',
 			body: formData
 		});
@@ -1484,16 +1622,23 @@ export const taxDeductionsApi = {
 			}
 			throw new ApiError(response.status, response.statusText, body);
 		}
-		return response.json();
+		const respondedForHeader = response.headers.get('X-Company-Id');
+		const respondedFor = respondedForHeader ? Number(respondedForHeader) : submittedFor;
+		const data = (await response.json()) as TaxDeductionDocument;
+		return {
+			data,
+			submittedFor,
+			respondedFor: Number.isFinite(respondedFor) ? respondedFor : submittedFor
+		};
 	},
 	deleteDocument(id: number) {
-		return del<void>(`/tax-deduction-documents/${id}`);
+		return delPC<void>(`/tax-deduction-documents/${id}`);
 	},
 	downloadDocument(id: number): string {
-		return `${API_BASE}/tax-deduction-documents/${id}/file`;
+		return pcUrl(`/tax-deduction-documents/${id}/file`);
 	},
 	extractDocument(id: number) {
-		return post<TaxExtractionResult>(`/tax-deduction-documents/${id}/extract`, {});
+		return postPC<TaxExtractionResult>(`/tax-deduction-documents/${id}/extract`, {});
 	}
 };
 
@@ -1574,12 +1719,18 @@ export interface InvestmentExtractionResult {
 
 export const investmentsApi = {
 	// Documents
-	async uploadDocument(year: number, platform: string, file: File): Promise<InvestmentDocument> {
+	async uploadDocument(
+		year: number,
+		platform: string,
+		file: File
+	): Promise<WriteResult<InvestmentDocument>> {
+		const submittedFor = currentCompany.current?.id;
+		if (!submittedFor) throw new NoCompanyError();
 		const formData = new FormData();
 		formData.append('file', file);
 		formData.append('year', String(year));
 		formData.append('platform', platform);
-		const response = await fetch(`${API_BASE}/investments/documents`, {
+		const response = await fetch(`/api/v1/companies/${submittedFor}/investments/documents`, {
 			method: 'POST',
 			body: formData
 		});
@@ -1592,24 +1743,31 @@ export const investmentsApi = {
 			}
 			throw new ApiError(response.status, response.statusText, body);
 		}
-		return response.json();
+		const respondedForHeader = response.headers.get('X-Company-Id');
+		const respondedFor = respondedForHeader ? Number(respondedForHeader) : submittedFor;
+		const data = (await response.json()) as InvestmentDocument;
+		return {
+			data,
+			submittedFor,
+			respondedFor: Number.isFinite(respondedFor) ? respondedFor : submittedFor
+		};
 	},
 	listDocuments(year: number) {
-		return get<InvestmentDocument[]>(`/investments/documents?year=${year}`);
+		return getPC<InvestmentDocument[]>(`/investments/documents?year=${year}`);
 	},
 	deleteDocument(id: number) {
-		return del<void>(`/investments/documents/${id}`);
+		return delPC<void>(`/investments/documents/${id}`);
 	},
 	extractDocument(id: number) {
-		return post<InvestmentExtractionResult>(`/investments/documents/${id}/extract`, {});
+		return postPC<InvestmentExtractionResult>(`/investments/documents/${id}/extract`, {});
 	},
 	downloadDocumentUrl(id: number): string {
-		return `${API_BASE}/investments/documents/${id}/download`;
+		return pcUrl(`/investments/documents/${id}/download`);
 	},
 
 	// Capital income (§8)
 	listCapitalIncome(year: number) {
-		return get<CapitalIncomeEntry[]>(`/investments/capital-income?year=${year}`);
+		return getPC<CapitalIncomeEntry[]>(`/investments/capital-income?year=${year}`);
 	},
 	createCapitalIncome(data: {
 		year: number;
@@ -1622,7 +1780,7 @@ export const investmentsApi = {
 		country_code: string;
 		needs_declaring: boolean;
 	}) {
-		return post<CapitalIncomeEntry>('/investments/capital-income', data);
+		return postPC<CapitalIncomeEntry>('/investments/capital-income', data);
 	},
 	updateCapitalIncome(
 		id: number,
@@ -1638,15 +1796,15 @@ export const investmentsApi = {
 			needs_declaring: boolean;
 		}
 	) {
-		return put<CapitalIncomeEntry>(`/investments/capital-income/${id}`, data);
+		return putPC<CapitalIncomeEntry>(`/investments/capital-income/${id}`, data);
 	},
 	deleteCapitalIncome(id: number) {
-		return del<void>(`/investments/capital-income/${id}`);
+		return delPC<void>(`/investments/capital-income/${id}`);
 	},
 
 	// Security transactions (§10)
 	listSecurityTransactions(year: number) {
-		return get<SecurityTransaction[]>(`/investments/security-transactions?year=${year}`);
+		return getPC<SecurityTransaction[]>(`/investments/security-transactions?year=${year}`);
 	},
 	createSecurityTransaction(data: {
 		year: number;
@@ -1662,7 +1820,7 @@ export const investmentsApi = {
 		currency_code: string;
 		exchange_rate: number;
 	}) {
-		return post<SecurityTransaction>('/investments/security-transactions', data);
+		return postPC<SecurityTransaction>('/investments/security-transactions', data);
 	},
 	updateSecurityTransaction(
 		id: number,
@@ -1681,18 +1839,18 @@ export const investmentsApi = {
 			exchange_rate: number;
 		}
 	) {
-		return put<SecurityTransaction>(`/investments/security-transactions/${id}`, data);
+		return putPC<SecurityTransaction>(`/investments/security-transactions/${id}`, data);
 	},
 	deleteSecurityTransaction(id: number) {
-		return del<void>(`/investments/security-transactions/${id}`);
+		return delPC<void>(`/investments/security-transactions/${id}`);
 	},
 
 	// Computation
 	getYearSummary(year: number) {
-		return get<InvestmentYearSummary>(`/investments/summary/${year}`);
+		return getPC<InvestmentYearSummary>(`/investments/summary/${year}`);
 	},
 	recalculateFifo(year: number) {
-		return post<void>(`/investments/recalculate-fifo/${year}`, {});
+		return postPC<void>(`/investments/recalculate-fifo/${year}`, {});
 	}
 };
 
@@ -1720,7 +1878,7 @@ export const fakturoidApi = {
 		client_secret: string;
 		download_attachments?: boolean;
 	}) {
-		return post<FakturoidImportResult>('/import/fakturoid/import', data);
+		return postPC<FakturoidImportResult>('/import/fakturoid/import', data);
 	}
 };
 
@@ -1739,19 +1897,19 @@ export interface InvoiceDocument {
 
 export const invoiceDocumentsApi = {
 	listByInvoice(invoiceId: number) {
-		return get<InvoiceDocument[]>(`/invoices/${invoiceId}/documents`);
+		return getPC<InvoiceDocument[]>(`/invoices/${invoiceId}/documents`);
 	},
 
 	getById(id: number) {
-		return get<InvoiceDocument>(`/invoice-documents/${id}`);
+		return getPC<InvoiceDocument>(`/invoice-documents/${id}`);
 	},
 
 	getDownloadUrl(id: number): string {
-		return `${API_BASE}/invoice-documents/${id}/download`;
+		return pcUrl(`/invoice-documents/${id}/download`);
 	},
 
 	delete(id: number) {
-		return del<void>(`/invoice-documents/${id}`);
+		return delPC<void>(`/invoice-documents/${id}`);
 	}
 };
 
@@ -1796,7 +1954,7 @@ export interface DashboardData {
 
 export const dashboardApi = {
 	get() {
-		return get<DashboardData>('/dashboard');
+		return getPC<DashboardData>('/dashboard');
 	}
 };
 
@@ -1860,19 +2018,19 @@ export interface TaxCalendar {
 
 export const reportsApi = {
 	revenue(year: number) {
-		return get<RevenueReport>(`/reports/revenue?year=${year}`);
+		return getPC<RevenueReport>(`/reports/revenue?year=${year}`);
 	},
 	expenses(year: number) {
-		return get<ExpenseReport>(`/reports/expenses?year=${year}`);
+		return getPC<ExpenseReport>(`/reports/expenses?year=${year}`);
 	},
 	topCustomers(year: number) {
-		return get<TopCustomer[]>(`/reports/top-customers?year=${year}`);
+		return getPC<TopCustomer[]>(`/reports/top-customers?year=${year}`);
 	},
 	profitLoss(year: number) {
-		return get<ProfitLossReport>(`/reports/profit-loss?year=${year}`);
+		return getPC<ProfitLossReport>(`/reports/profit-loss?year=${year}`);
 	},
 	taxCalendar(year: number) {
-		return get<TaxCalendar>(`/reports/tax-calendar?year=${year}`);
+		return getPC<TaxCalendar>(`/reports/tax-calendar?year=${year}`);
 	}
 };
 
@@ -1920,10 +2078,10 @@ export const auditLogApi = {
 
 export const exportApi = {
 	invoicesUrl(year: number): string {
-		return `${API_BASE}/export/invoices?year=${year}`;
+		return pcUrl(`/export/invoices?year=${year}`);
 	},
 	expensesUrl(year: number): string {
-		return `${API_BASE}/export/expenses?year=${year}`;
+		return pcUrl(`/export/expenses?year=${year}`);
 	}
 };
 
@@ -1982,28 +2140,40 @@ export interface PDFSettings {
 
 export const pdfSettingsApi = {
 	get() {
-		return get<PDFSettings>('/settings/pdf');
+		return getPC<PDFSettings>('/settings/pdf');
 	},
 	update(data: Omit<PDFSettings, 'logo_path' | 'has_logo'>) {
-		return put<PDFSettings>('/settings/pdf', data);
+		return putPC<PDFSettings>('/settings/pdf', data);
 	},
-	async uploadLogo(file: File) {
+	async uploadLogo(file: File): Promise<WriteResult<{ logo_path: string }>> {
+		const submittedFor = currentCompany.current?.id;
+		if (!submittedFor) throw new NoCompanyError();
 		const form = new FormData();
 		form.append('file', file);
-		const resp = await fetch(`${API_BASE}/settings/logo`, { method: 'POST', body: form });
+		const resp = await fetch(`/api/v1/companies/${submittedFor}/settings/logo`, {
+			method: 'POST',
+			body: form
+		});
 		if (!resp.ok) {
 			const err = await resp.json().catch(() => ({ error: 'Upload failed' }));
 			throw new Error(err.error || 'Upload failed');
 		}
-		return resp.json();
+		const respondedForHeader = resp.headers.get('X-Company-Id');
+		const respondedFor = respondedForHeader ? Number(respondedForHeader) : submittedFor;
+		const data = (await resp.json()) as { logo_path: string };
+		return {
+			data,
+			submittedFor,
+			respondedFor: Number.isFinite(respondedFor) ? respondedFor : submittedFor
+		};
 	},
 	deleteLogo() {
-		return del('/settings/logo');
+		return delPC<void>('/settings/logo');
 	},
 	logoUrl(): string {
-		return `${API_BASE}/settings/logo`;
+		return pcUrl(`/settings/logo`);
 	},
 	previewUrl(): string {
-		return `${API_BASE}/settings/pdf-preview`;
+		return pcUrl(`/settings/pdf-preview`);
 	}
 };

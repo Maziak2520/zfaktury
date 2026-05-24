@@ -7,6 +7,7 @@
 		type HealthInsuranceOverview,
 		type TaxConstants
 	} from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import Badge from '$lib/ui/Badge.svelte';
@@ -64,7 +65,11 @@
 	async function handleRecalculate() {
 		actionLoading = 'recalculate';
 		try {
-			data = await healthInsuranceApi.recalculate(returnId);
+			const result = await healthInsuranceApi.recalculate(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se přepočítat');
 		} finally {
@@ -80,7 +85,11 @@
 		showFileConfirm = false;
 		actionLoading = 'filed';
 		try {
-			data = await healthInsuranceApi.markFiled(returnId);
+			const result = await healthInsuranceApi.markFiled(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 			toastSuccess('Přehled ZP označen jako podaný');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se označit jako podané');

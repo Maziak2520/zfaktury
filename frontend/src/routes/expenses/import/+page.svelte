@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { importApi, expensesApi, type OCRResult } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { toastSuccess, toastError } from '$lib/data/toast-state.svelte';
 	import OCRReviewDialog from '$lib/components/OCRReviewDialog.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -38,16 +39,21 @@
 
 		try {
 			const result = await importApi.importDocument(file);
-			expenseId = result.expense.id;
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				pageState = 'idle';
+				return;
+			}
+			const imported = result.data;
+			expenseId = imported.expense.id;
 
-			if (result.ocr) {
-				ocrResult = result.ocr;
+			if (imported.ocr) {
+				ocrResult = imported.ocr;
 				pageState = 'review';
 			} else {
 				// No OCR -- show info and redirect to expense for manual editing
 				pageState = 'done';
 				setTimeout(() => {
-					goto(`/expenses/${result.expense.id}`);
+					goto(`/expenses/${imported.expense.id}`);
 				}, 3000);
 			}
 		} catch (e) {

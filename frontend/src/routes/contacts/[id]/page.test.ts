@@ -122,7 +122,7 @@ describe('Contact detail page - new mode', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/contacts',
+				'/api/v1/companies/1/contacts',
 				expect.objectContaining({ method: 'POST' })
 			);
 		});
@@ -230,7 +230,7 @@ describe('Contact detail page - edit mode', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/contacts/1',
+				'/api/v1/companies/1/contacts/1',
 				expect.objectContaining({ method: 'PUT' })
 			);
 		});
@@ -272,7 +272,7 @@ describe('Contact detail page - edit mode', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/contacts/1',
+				'/api/v1/companies/1/contacts/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});

@@ -79,7 +79,7 @@ describe('VAT return detail page', () => {
 		});
 
 		const url = mockFetch.mock.calls[0][0] as string;
-		expect(url).toContain('/api/v1/vat-returns/1');
+		expect(url).toContain('/api/v1/companies/1/vat-returns/1');
 	});
 
 	it('renders heading with period', async () => {
@@ -246,7 +246,7 @@ describe('VAT return detail page', () => {
 		});
 
 		const secondUrl = mockFetch.mock.calls[1][0] as string;
-		expect(secondUrl).toContain('/api/v1/vat-returns/1/recalculate');
+		expect(secondUrl).toContain('/api/v1/companies/1/vat-returns/1/recalculate');
 	});
 
 	it('delete calls API and navigates away', async () => {

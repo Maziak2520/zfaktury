@@ -209,7 +209,8 @@
 	async function handleOcr(docId: number) {
 		ocrProcessing = true;
 		try {
-			ocrResult = await ocrApi.processDocument(docId);
+			const result = await ocrApi.processDocument(docId);
+			ocrResult = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'OCR zpracování selhalo');
 		} finally {

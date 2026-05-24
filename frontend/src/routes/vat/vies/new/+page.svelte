@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { viesApi } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { filingTypeLabels, quarterLabels } from '$lib/utils/vat';
 	import { toastError } from '$lib/data/toast-state.svelte';
 	import Card from '$lib/ui/Card.svelte';
@@ -40,7 +41,10 @@
 				quarter: form.quarter,
 				filing_type: form.filing_type
 			});
-			goto(`/vat/vies/${result.id}`);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			goto(`/vat/vies/${result.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se vytvořit souhrnné hlášení');
 		} finally {

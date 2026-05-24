@@ -31,7 +31,7 @@ beforeEach(() => {
 	vi.setSystemTime(new Date('2026-03-10T12:00:00Z'));
 	mockFetch.mockReset();
 	clearAllToasts();
-	// Default: contacts load (contactsApi.list calls fetch with /api/v1/contacts)
+	// Default: contacts load (contactsApi.list calls fetch with /api/v1/companies/1/contacts)
 	mockFetch.mockResolvedValue(jsonResponse(sampleContacts));
 });
 
@@ -50,7 +50,7 @@ describe('Invoice Create', () => {
 		render(Page);
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining('/api/v1/contacts'),
+				expect.stringContaining('/api/v1/companies/1/contacts'),
 				expect.any(Object)
 			);
 		});

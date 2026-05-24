@@ -80,7 +80,7 @@ describe('Fakturoid import page', () => {
 
 		// Verify import API was called with correct endpoint and credentials
 		expect(mockFetch).toHaveBeenCalledWith(
-			'/api/v1/import/fakturoid/import',
+			'/api/v1/companies/1/import/fakturoid/import',
 			expect.objectContaining({ method: 'POST' })
 		);
 	});

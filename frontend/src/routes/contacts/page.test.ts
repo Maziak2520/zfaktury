@@ -67,7 +67,7 @@ describe('Contacts list page', () => {
 		});
 
 		const url = mockFetch.mock.calls[0][0] as string;
-		expect(url).toContain('/api/v1/contacts');
+		expect(url).toContain('/api/v1/companies/1/contacts');
 	});
 
 	it('renders contact rows with name, ICO, and city', async () => {

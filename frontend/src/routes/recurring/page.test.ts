@@ -79,7 +79,7 @@ describe('Recurring invoices list page', () => {
 		});
 
 		const url = mockFetch.mock.calls[0][0] as string;
-		expect(url).toBe('/api/v1/recurring-invoices');
+		expect(url).toBe('/api/v1/companies/1/recurring-invoices');
 	});
 
 	it('renders rows with name, customer, frequency label, and status', async () => {
@@ -118,7 +118,7 @@ describe('Recurring invoices list page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/recurring-invoices/process-due',
+				'/api/v1/companies/1/recurring-invoices/process-due',
 				expect.objectContaining({ method: 'POST' })
 			);
 		});
@@ -148,7 +148,7 @@ describe('Recurring invoices list page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/recurring-invoices/1',
+				'/api/v1/companies/1/recurring-invoices/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});

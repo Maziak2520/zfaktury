@@ -87,7 +87,7 @@ describe('Recurring invoice detail page', () => {
 		});
 
 		const riCall = mockFetch.mock.calls.find(
-			(call) => (call[0] as string) === '/api/v1/recurring-invoices/1'
+			(call) => (call[0] as string) === '/api/v1/companies/1/recurring-invoices/1'
 		);
 		expect(riCall).toBeTruthy();
 	});
@@ -124,7 +124,7 @@ describe('Recurring invoice detail page', () => {
 		await waitFor(() => {
 			const generateCall = mockFetch.mock.calls.find(
 				(call) =>
-					(call[0] as string) === '/api/v1/recurring-invoices/1/generate' &&
+					(call[0] as string) === '/api/v1/companies/1/recurring-invoices/1/generate' &&
 					call[1]?.method === 'POST'
 			);
 			expect(generateCall).toBeTruthy();

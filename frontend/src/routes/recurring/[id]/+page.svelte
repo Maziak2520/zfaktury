@@ -8,6 +8,7 @@
 		type RecurringInvoice,
 		type Contact
 	} from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { formatDate } from '$lib/utils/date';
 	import { formatCZK, toHalere, fromHalere } from '$lib/utils/money';
 	import { frequencyLabels, paymentMethodLabels } from '$lib/utils/invoice';
@@ -130,7 +131,11 @@
 				items: requestItems
 			};
 
-			recurringInvoice = await recurringInvoicesApi.update(id, body as Partial<RecurringInvoice>);
+			const result = await recurringInvoicesApi.update(id, body as Partial<RecurringInvoice>);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			recurringInvoice = result.data;
 			toastSuccess('Opakující se faktura uložena');
 			editing = false;
 		} catch (e) {
@@ -143,9 +148,12 @@
 	async function generateInvoice() {
 		generating = true;
 		try {
-			const invoice = await recurringInvoicesApi.generate(id);
+			const result = await recurringInvoicesApi.generate(id);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
 			toastSuccess('Faktura vygenerována');
-			goto(`/invoices/${invoice.id}`);
+			goto(`/invoices/${result.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se vygenerovat fakturu');
 		} finally {

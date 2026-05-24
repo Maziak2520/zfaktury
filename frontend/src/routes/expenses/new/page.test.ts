@@ -64,7 +64,7 @@ describe('Expense Create', () => {
 		render(Page);
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining('/api/v1/contacts'),
+				expect.stringContaining('/api/v1/companies/1/contacts'),
 				expect.any(Object)
 			);
 		});
@@ -198,7 +198,7 @@ describe('Expense Create', () => {
 			const expenseCall = mockFetch.mock.calls.find(
 				(call: any[]) =>
 					typeof call[0] === 'string' &&
-					call[0].includes('/api/v1/expenses') &&
+					call[0].includes('/api/v1/companies/1/expenses') &&
 					!call[0].includes('/expense-categories') &&
 					call[1]?.method === 'POST'
 			);

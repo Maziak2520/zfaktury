@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { controlStatementApi } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { filingTypeLabels, monthLabels } from '$lib/utils/vat';
 	import { toastError } from '$lib/data/toast-state.svelte';
 	import Card from '$lib/ui/Card.svelte';
@@ -40,7 +41,10 @@
 				month: form.month,
 				filing_type: form.filing_type
 			});
-			goto(`/vat/control/${result.id}`);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			goto(`/vat/control/${result.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se vytvořit kontrolní hlášení');
 		} finally {

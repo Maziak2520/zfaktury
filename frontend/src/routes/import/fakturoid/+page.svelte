@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { fakturoidApi, type FakturoidImportResult } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { toastSuccess, toastError } from '$lib/data/toast-state.svelte';
 
 	type Step = 'idle' | 'importing' | 'done';
@@ -19,13 +20,18 @@
 		submitting = true;
 		step = 'importing';
 		try {
-			result = await fakturoidApi.import({
+			const writeResult = await fakturoidApi.import({
 				slug,
 				email,
 				client_id: clientId,
 				client_secret: clientSecret,
 				download_attachments: downloadAttachments
 			});
+			if (notifyIfSwitchedCompany(writeResult.submittedFor, writeResult.respondedFor)) {
+				step = 'idle';
+				return;
+			}
+			result = writeResult.data;
 			step = 'done';
 			const total = result.contacts_created + result.invoices_created + result.expenses_created;
 			if (total > 0) {

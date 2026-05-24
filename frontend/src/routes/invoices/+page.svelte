@@ -87,10 +87,10 @@
 		try {
 			const result = await statusHistoryApi.checkOverdue();
 			overdueMessage =
-				result.marked > 0
-					? `Označeno ${result.marked} faktur jako po splatnosti.`
+				result.data.marked > 0
+					? `Označeno ${result.data.marked} faktur jako po splatnosti.`
 					: 'Žádné nové faktury po splatnosti.';
-			if (result.marked > 0) await loadInvoices();
+			if (result.data.marked > 0) await loadInvoices();
 			setTimeout(() => {
 				overdueMessage = null;
 			}, 5000);

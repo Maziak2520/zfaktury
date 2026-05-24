@@ -44,10 +44,10 @@ afterEach(() => {
 describe('New recurring expense page', () => {
 	function setupDefaultMocks() {
 		mockFetch.mockImplementation((url: string) => {
-			if (url.includes('/api/v1/contacts')) {
+			if (url.includes('/api/v1/companies/1/contacts')) {
 				return Promise.resolve(jsonResponse(sampleContacts));
 			}
-			if (url.includes('/api/v1/expense-categories')) {
+			if (url.includes('/api/v1/companies/1/expense-categories')) {
 				return Promise.resolve(jsonResponse(sampleCategories));
 			}
 			return Promise.resolve(jsonResponse({}));
@@ -69,7 +69,7 @@ describe('New recurring expense page', () => {
 
 		await waitFor(() => {
 			const contactCall = mockFetch.mock.calls.find((call) =>
-				(call[0] as string).includes('/api/v1/contacts')
+				(call[0] as string).includes('/api/v1/companies/1/contacts')
 			);
 			expect(contactCall).toBeTruthy();
 		});
@@ -166,7 +166,7 @@ describe('New recurring expense page', () => {
 		await waitFor(() => {
 			const postCall = mockFetch.mock.calls.find(
 				(call) =>
-					(call[0] as string).includes('/api/v1/recurring-expenses') &&
+					(call[0] as string).includes('/api/v1/companies/1/recurring-expenses') &&
 					call[1]?.method === 'POST' &&
 					!(call[0] as string).includes('generate')
 			);

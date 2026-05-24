@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { documentsApi, type ExpenseDocument } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 
 	interface Props {
 		expenseId: number;
@@ -38,8 +39,11 @@
 		uploading = true;
 
 		try {
-			const doc = await documentsApi.upload(expenseId, file);
-			onuploaded?.(doc);
+			const result = await documentsApi.upload(expenseId, file);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			onuploaded?.(result.data);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Nahrávání se nezdařilo.';
 		} finally {

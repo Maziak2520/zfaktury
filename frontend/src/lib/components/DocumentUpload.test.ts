@@ -93,7 +93,7 @@ describe('DocumentUpload', () => {
 		});
 
 		const [url, options] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/expenses/42/documents');
+		expect(url).toBe('/api/v1/companies/1/expenses/42/documents');
 		expect(options.method).toBe('POST');
 		expect(options.body).toBeInstanceOf(FormData);
 	});

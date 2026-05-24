@@ -292,8 +292,9 @@
 	async function extractAmount(docId: number) {
 		saving = true;
 		try {
-			const result: TaxExtractionResult = await taxDeductionsApi.extractDocument(docId);
-			if (result.amount_czk > 0) {
+			const result = await taxDeductionsApi.extractDocument(docId);
+			const extraction: TaxExtractionResult = result.data;
+			if (extraction.amount_czk > 0) {
 				await loadData();
 			}
 		} catch (e) {

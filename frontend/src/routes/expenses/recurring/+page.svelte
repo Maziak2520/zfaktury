@@ -43,8 +43,8 @@
 		successMessage = null;
 		try {
 			const result = await recurringExpensesApi.generate();
-			if (result.generated > 0) {
-				successMessage = `Vygenerováno ${result.generated} nákladů.`;
+			if (result.data.generated > 0) {
+				successMessage = `Vygenerováno ${result.data.generated} nákladů.`;
 			} else {
 				successMessage = 'Žádné náklady k vygenerování.';
 			}

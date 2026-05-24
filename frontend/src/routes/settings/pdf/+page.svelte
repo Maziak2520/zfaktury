@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { pdfSettingsApi, type PDFSettings } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import LoadingSpinner from '$lib/ui/LoadingSpinner.svelte';
 	import ErrorAlert from '$lib/ui/ErrorAlert.svelte';
@@ -44,13 +45,17 @@
 	async function handleSave() {
 		saving = true;
 		try {
-			settings = await pdfSettingsApi.update({
+			const result = await pdfSettingsApi.update({
 				accent_color: accentColor,
 				footer_text: footerText,
 				show_qr: showQR,
 				show_bank_details: showBankDetails,
 				font_size: fontSize
 			});
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			settings = result.data;
 			toastSuccess('Nastavení PDF šablony uloženo');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se uložit nastavení');
@@ -66,7 +71,10 @@
 
 		uploading = true;
 		try {
-			await pdfSettingsApi.uploadLogo(file);
+			const result = await pdfSettingsApi.uploadLogo(file);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
 			await loadSettings();
 			toastSuccess('Logo nahráno');
 		} catch (err) {
@@ -79,7 +87,10 @@
 
 	async function handleLogoDelete() {
 		try {
-			await pdfSettingsApi.deleteLogo();
+			const result = await pdfSettingsApi.deleteLogo();
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
 			await loadSettings();
 			toastSuccess('Logo odstraněno');
 		} catch (e) {

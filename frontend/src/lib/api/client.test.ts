@@ -1,15 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApiError, contactsApi, invoicesApi, expensesApi, settingsApi } from './client';
+import { currentCompany } from '$lib/stores/currentCompany.svelte';
+import { TEST_COMPANY } from '../../test-setup';
 
 // Mock global fetch
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-function jsonResponse(data: unknown, status = 200) {
+const COMPANY_PREFIX = `/api/v1/companies/${TEST_COMPANY.id}`;
+
+function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}) {
 	return new Response(JSON.stringify(data), {
 		status,
 		statusText: status === 200 ? 'OK' : 'Error',
-		headers: { 'Content-Type': 'application/json' }
+		headers: {
+			'Content-Type': 'application/json',
+			'X-Company-Id': String(TEST_COMPANY.id),
+			...headers
+		}
 	});
 }
 
@@ -56,14 +64,14 @@ describe('ApiError', () => {
 // --- Contacts API ---
 
 describe('contactsApi', () => {
-	it('list sends GET with query params', async () => {
+	it('list sends GET with query params under the per-company prefix', async () => {
 		mockFetch.mockResolvedValueOnce(jsonResponse({ data: [], total: 0, limit: 20, offset: 0 }));
 
 		const result = await contactsApi.list({ limit: 10, offset: 5, search: 'test' });
 
 		expect(mockFetch).toHaveBeenCalledOnce();
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toContain('/api/v1/contacts');
+		expect(url).toContain(`${COMPANY_PREFIX}/contacts`);
 		expect(url).toContain('limit=10');
 		expect(url).toContain('offset=5');
 		expect(url).toContain('search=test');
@@ -77,7 +85,7 @@ describe('contactsApi', () => {
 		await contactsApi.list();
 
 		const [url] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/contacts');
+		expect(url).toBe(`${COMPANY_PREFIX}/contacts`);
 	});
 
 	it('getById sends GET with id', async () => {
@@ -87,51 +95,73 @@ describe('contactsApi', () => {
 		const result = await contactsApi.getById(1);
 
 		const [url] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/contacts/1');
+		expect(url).toBe(`${COMPANY_PREFIX}/contacts/1`);
 		expect(result).toEqual(contact);
 	});
 
-	it('create sends POST with body', async () => {
+	it('create returns WriteResult with data, submittedFor, respondedFor', async () => {
 		const data = { type: 'company' as const, name: 'New Corp' };
 		mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, ...data }));
 
-		await contactsApi.create(data);
+		const result = await contactsApi.create(data);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/contacts');
+		expect(url).toBe(`${COMPANY_PREFIX}/contacts`);
 		expect(opts.method).toBe('POST');
 		expect(JSON.parse(opts.body)).toEqual(data);
+		expect(result.submittedFor).toBe(TEST_COMPANY.id);
+		expect(result.respondedFor).toBe(TEST_COMPANY.id);
+		expect(result.data).toMatchObject(data);
 	});
 
-	it('update sends PUT with id and body', async () => {
+	it('create surfaces X-Company-Id mismatch via respondedFor', async () => {
+		mockFetch.mockResolvedValueOnce(
+			jsonResponse({ id: 9 }, 200, { 'X-Company-Id': '7' })
+		);
+
+		const result = await contactsApi.create({ name: 'X' });
+		expect(result.submittedFor).toBe(TEST_COMPANY.id);
+		expect(result.respondedFor).toBe(7);
+	});
+
+	it('update sends PUT with id and body, returns WriteResult', async () => {
 		const data = { name: 'Updated' };
 		mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, name: 'Updated' }));
 
-		await contactsApi.update(1, data);
+		const result = await contactsApi.update(1, data);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/contacts/1');
+		expect(url).toBe(`${COMPANY_PREFIX}/contacts/1`);
 		expect(opts.method).toBe('PUT');
+		expect(result.data).toEqual({ id: 1, name: 'Updated' });
 	});
 
-	it('delete sends DELETE', async () => {
-		mockFetch.mockResolvedValueOnce(new Response(null, { status: 204, statusText: 'No Content' }));
+	it('delete sends DELETE, returns WriteResult<void>', async () => {
+		mockFetch.mockResolvedValueOnce(
+			new Response(null, {
+				status: 204,
+				statusText: 'No Content',
+				headers: { 'X-Company-Id': String(TEST_COMPANY.id) }
+			})
+		);
 
-		await contactsApi.delete(1);
+		const result = await contactsApi.delete(1);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/contacts/1');
+		expect(url).toBe(`${COMPANY_PREFIX}/contacts/1`);
 		expect(opts.method).toBe('DELETE');
+		expect(result.data).toBeUndefined();
+		expect(result.submittedFor).toBe(TEST_COMPANY.id);
 	});
 
-	it('lookupAres sends GET with ICO', async () => {
+	it('lookupAres sends GET with ICO under the per-company prefix', async () => {
 		const ares = { ico: '12345678', name: 'ARES Corp' };
 		mockFetch.mockResolvedValueOnce(jsonResponse(ares));
 
 		const result = await contactsApi.lookupAres('12345678');
 
 		const [url] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/contacts/ares/12345678');
+		expect(url).toBe(`${COMPANY_PREFIX}/contacts/ares/12345678`);
 		expect(result).toEqual(ares);
 	});
 
@@ -152,13 +182,13 @@ describe('contactsApi', () => {
 // --- Invoices API ---
 
 describe('invoicesApi', () => {
-	it('list sends GET with query params', async () => {
+	it('list sends GET with query params under the per-company prefix', async () => {
 		mockFetch.mockResolvedValueOnce(jsonResponse({ data: [], total: 0, limit: 20, offset: 0 }));
 
 		await invoicesApi.list({ limit: 10, status: 'draft' });
 
 		const [url] = mockFetch.mock.calls[0];
-		expect(url).toContain('/api/v1/invoices');
+		expect(url).toContain(`${COMPANY_PREFIX}/invoices`);
 		expect(url).toContain('limit=10');
 		expect(url).toContain('status=draft');
 	});
@@ -168,18 +198,19 @@ describe('invoicesApi', () => {
 
 		const result = await invoicesApi.getById(1);
 
-		expect(mockFetch.mock.calls[0][0]).toBe('/api/v1/invoices/1');
+		expect(mockFetch.mock.calls[0][0]).toBe(`${COMPANY_PREFIX}/invoices/1`);
 		expect(result.invoice_number).toBe('FV001');
 	});
 
 	it('send sends POST to /send', async () => {
 		mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, status: 'sent' }));
 
-		await invoicesApi.send(1);
+		const result = await invoicesApi.send(1);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/invoices/1/send');
+		expect(url).toBe(`${COMPANY_PREFIX}/invoices/1/send`);
 		expect(opts.method).toBe('POST');
+		expect(result.data.status).toBe('sent');
 	});
 
 	it('markPaid sends POST to /mark-paid with amount', async () => {
@@ -188,7 +219,7 @@ describe('invoicesApi', () => {
 		await invoicesApi.markPaid(1, 10000, '2026-03-10');
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/invoices/1/mark-paid');
+		expect(url).toBe(`${COMPANY_PREFIX}/invoices/1/mark-paid`);
 		expect(opts.method).toBe('POST');
 		const body = JSON.parse(opts.body);
 		expect(body.amount).toBe(10000);
@@ -198,11 +229,12 @@ describe('invoicesApi', () => {
 	it('duplicate sends POST to /duplicate', async () => {
 		mockFetch.mockResolvedValueOnce(jsonResponse({ id: 2, status: 'draft' }));
 
-		await invoicesApi.duplicate(1);
+		const result = await invoicesApi.duplicate(1);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/invoices/1/duplicate');
+		expect(url).toBe(`${COMPANY_PREFIX}/invoices/1/duplicate`);
 		expect(opts.method).toBe('POST');
+		expect(result.data.id).toBe(2);
 	});
 });
 
@@ -215,7 +247,7 @@ describe('expensesApi', () => {
 		await expensesApi.list({ search: 'office' });
 
 		const [url] = mockFetch.mock.calls[0];
-		expect(url).toContain('/api/v1/expenses');
+		expect(url).toContain(`${COMPANY_PREFIX}/expenses`);
 		expect(url).toContain('search=office');
 	});
 
@@ -223,21 +255,28 @@ describe('expensesApi', () => {
 		const data = { description: 'Office supplies', amount: 50000 };
 		mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, ...data }));
 
-		await expensesApi.create(data);
+		const result = await expensesApi.create(data);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/expenses');
+		expect(url).toBe(`${COMPANY_PREFIX}/expenses`);
 		expect(opts.method).toBe('POST');
 		expect(JSON.parse(opts.body)).toEqual(data);
+		expect(result.data.id).toBe(1);
 	});
 
 	it('delete sends DELETE', async () => {
-		mockFetch.mockResolvedValueOnce(new Response(null, { status: 204, statusText: 'No Content' }));
+		mockFetch.mockResolvedValueOnce(
+			new Response(null, {
+				status: 204,
+				statusText: 'No Content',
+				headers: { 'X-Company-Id': String(TEST_COMPANY.id) }
+			})
+		);
 
 		await expensesApi.delete(5);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/expenses/5');
+		expect(url).toBe(`${COMPANY_PREFIX}/expenses/5`);
 		expect(opts.method).toBe('DELETE');
 	});
 });
@@ -251,7 +290,7 @@ describe('settingsApi', () => {
 
 		const result = await settingsApi.getAll();
 
-		expect(mockFetch.mock.calls[0][0]).toBe('/api/v1/settings');
+		expect(mockFetch.mock.calls[0][0]).toBe(`${COMPANY_PREFIX}/settings`);
 		expect(result).toEqual(settings);
 	});
 
@@ -259,12 +298,13 @@ describe('settingsApi', () => {
 		const settings = { company_name: 'Updated', ico: '87654321' };
 		mockFetch.mockResolvedValueOnce(jsonResponse(settings));
 
-		await settingsApi.update(settings);
+		const result = await settingsApi.update(settings);
 
 		const [url, opts] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/settings');
+		expect(url).toBe(`${COMPANY_PREFIX}/settings`);
 		expect(opts.method).toBe('PUT');
 		expect(JSON.parse(opts.body)).toEqual(settings);
+		expect(result.data).toEqual(settings);
 	});
 });
 
@@ -292,9 +332,29 @@ describe('API error handling', () => {
 	});
 
 	it('handles 204 No Content without parsing body', async () => {
-		mockFetch.mockResolvedValueOnce(new Response(null, { status: 204, statusText: 'No Content' }));
+		mockFetch.mockResolvedValueOnce(
+			new Response(null, {
+				status: 204,
+				statusText: 'No Content',
+				headers: { 'X-Company-Id': String(TEST_COMPANY.id) }
+			})
+		);
 
 		const result = await contactsApi.delete(1);
-		expect(result).toBeUndefined();
+		expect(result.data).toBeUndefined();
+	});
+});
+
+// --- NoCompanyError ---
+
+describe('No active company guard', () => {
+	it('reads throw NoCompanyError when no company selected', async () => {
+		currentCompany.reset();
+		await expect(contactsApi.list()).rejects.toThrow('no active company');
+	});
+
+	it('writes throw NoCompanyError when no company selected', async () => {
+		currentCompany.reset();
+		await expect(contactsApi.create({ name: 'X' })).rejects.toThrow('no active company');
 	});
 });

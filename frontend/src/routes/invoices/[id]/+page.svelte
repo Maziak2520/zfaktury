@@ -13,6 +13,7 @@
 		type InvoiceStatusChange,
 		type InvoiceDocument
 	} from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { toHalere, fromHalere } from '$lib/utils/money';
 	import { formatDate, toISODate } from '$lib/utils/date';
 	import type { FormItem } from '$lib/components/InvoiceItemsEditor.svelte';
@@ -200,8 +201,11 @@
 	async function handleDuplicate() {
 		try {
 			const dup = await invoicesApi.duplicate(invoiceId);
+			if (notifyIfSwitchedCompany(dup.submittedFor, dup.respondedFor)) {
+				return;
+			}
 			toastSuccess('Faktura duplikována');
-			goto(`/invoices/${dup.id}`);
+			goto(`/invoices/${dup.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se duplikovat fakturu');
 		}
@@ -226,8 +230,11 @@
 		settling = true;
 		try {
 			const settled = await invoicesApi.settle(invoiceId);
+			if (notifyIfSwitchedCompany(settled.submittedFor, settled.respondedFor)) {
+				return;
+			}
 			toastSuccess('Záloha vypořádána');
-			goto(`/invoices/${settled.id}`);
+			goto(`/invoices/${settled.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se vyrovnat zálohu');
 		} finally {

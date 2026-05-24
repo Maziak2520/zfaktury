@@ -4,9 +4,11 @@
 	import { goto } from '$app/navigation';
 	import {
 		socialInsuranceApi,
+		pcUrl,
 		type SocialInsuranceOverview,
 		type TaxConstants
 	} from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
@@ -65,7 +67,11 @@
 	async function handleRecalculate() {
 		actionLoading = 'recalculate';
 		try {
-			data = await socialInsuranceApi.recalculate(returnId);
+			const result = await socialInsuranceApi.recalculate(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se přepočítat');
 		} finally {
@@ -76,7 +82,11 @@
 	async function handleGenerateXml() {
 		actionLoading = 'generate';
 		try {
-			data = await socialInsuranceApi.generateXml(returnId);
+			const result = await socialInsuranceApi.generateXml(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se generovat XML');
 		} finally {
@@ -88,7 +98,7 @@
 		actionLoading = 'download';
 		try {
 			await downloadFile(
-				`/api/v1/social-insurance/${returnId}/xml`,
+				pcUrl(`/social-insurance/${returnId}/xml`),
 				`cssz-prehled-${returnId}.xml`
 			);
 		} catch (e) {
@@ -106,7 +116,11 @@
 		showFileConfirm = false;
 		actionLoading = 'filed';
 		try {
-			data = await socialInsuranceApi.markFiled(returnId);
+			const result = await socialInsuranceApi.markFiled(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 			toastSuccess('Přehled ČSSZ označen jako podaný');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se označit jako podané');
