@@ -243,6 +243,32 @@ func TestMultiCompanyMigrationProductionSized(t *testing.T) {
 	t.Skip("populated in Phase 2 task 15")
 }
 
+func TestMultiCompanyMigration_CompositeFK_RejectsCrossCompanyInvoiceItem(t *testing.T) {
+	db := openMigratedDB(t, true)
+
+	// Create a second company and an invoice owned by it.
+	_, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	// Use the actual invoices schema -- adapt column list if needed.
+	res, err := db.Exec(`INSERT INTO invoices (invoice_number, customer_id, company_id, issue_date, due_date, status, total_amount, created_at, updated_at)
+		VALUES ('B-001', 1, 2, '2026-04-01', '2026-04-15', 'sent', 100000, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert invoice in company 2: %v", err)
+	}
+	invID, _ := res.LastInsertId()
+
+	// Attempting to attach an invoice_item with mismatched company_id must fail at the FK level.
+	// Invoice belongs to company 2; item claims company 1.
+	_, err = db.Exec(`INSERT INTO invoice_items (invoice_id, company_id, description, quantity, unit_price, total_amount)
+		VALUES (?, 1, 'cross-company leak', 1, 100, 100)`, invID)
+	if err == nil {
+		t.Error("expected composite FK violation; invoice belongs to company 2 but item names company 1")
+	}
+}
+
 func TestMultiCompanyMigration_InvoiceSequencesUniquePerCompany(t *testing.T) {
 	db := openMigratedDB(t, true)
 

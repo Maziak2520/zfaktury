@@ -132,12 +132,15 @@ ALTER TABLE security_transactions ADD COLUMN company_id INTEGER NOT NULL DEFAULT
 CREATE INDEX idx_security_transactions_company ON security_transactions(company_id);
 
 -- Rebuild: invoice_sequences gains company_id in its UNIQUE constraint.
--- SQLite cannot alter a UNIQUE constraint in place, so we rename → recreate → copy → drop.
-ALTER TABLE invoice_sequences RENAME TO invoice_sequences__old;
-
-CREATE TABLE invoice_sequences (
+-- SQLite cannot alter a UNIQUE constraint in place, so we build a fresh table
+-- under a temp name, copy rows, drop the original, then rename the new one.
+-- Important: we do NOT rename the ORIGINAL table out of the way, because
+-- doing so would silently rewrite the FK reference in invoices.sequence_id
+-- (modern SQLite auto-updates FK references on RENAME) and after the temp
+-- table was later dropped that reference would point at a vanished name.
+CREATE TABLE invoice_sequences__new (
 	id             INTEGER PRIMARY KEY AUTOINCREMENT,
-	company_id     INTEGER NOT NULL REFERENCES companies(id),
+	company_id     INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id),
 	prefix         TEXT    NOT NULL,
 	next_number    INTEGER NOT NULL DEFAULT 1,
 	year           INTEGER NOT NULL,
@@ -148,19 +151,157 @@ CREATE TABLE invoice_sequences (
 	UNIQUE(company_id, prefix, year)
 );
 
-INSERT INTO invoice_sequences (id, company_id, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at)
-SELECT id, 1, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at FROM invoice_sequences__old;
+INSERT INTO invoice_sequences__new (id, company_id, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at)
+SELECT id, 1, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at FROM invoice_sequences;
 
-DROP TABLE invoice_sequences__old;
+DROP TABLE invoice_sequences;
+ALTER TABLE invoice_sequences__new RENAME TO invoice_sequences;
 
 CREATE INDEX idx_invoice_sequences_year ON invoice_sequences(year);
 CREATE INDEX idx_invoice_sequences_deleted_at ON invoice_sequences(deleted_at);
 CREATE INDEX idx_invoice_sequences_company ON invoice_sequences(company_id);
 
+-- Partition: invoices + recurring_invoices (parents).
+-- Adding the column is enough on the parent side; the UNIQUE(company_id, id)
+-- index makes the parent a valid composite-FK target for the rebuilt children.
+ALTER TABLE invoices            ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+ALTER TABLE recurring_invoices  ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+CREATE INDEX        idx_invoices_company              ON invoices(company_id);
+CREATE INDEX        idx_recurring_invoices_company    ON recurring_invoices(company_id);
+CREATE UNIQUE INDEX idx_invoices_company_id           ON invoices(company_id, id);
+CREATE UNIQUE INDEX idx_recurring_invoices_company_id ON recurring_invoices(company_id, id);
+
+-- Rebuild: invoice_items gains company_id and a composite FK
+-- (company_id, invoice_id) -> invoices(company_id, id) so an item can never
+-- reference an invoice owned by a different company. ON DELETE CASCADE keeps
+-- the original deletion semantics from migration 001.
+ALTER TABLE invoice_items RENAME TO invoice_items__old;
+CREATE TABLE invoice_items (
+	id               INTEGER PRIMARY KEY AUTOINCREMENT,
+	company_id       INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id),
+	invoice_id       INTEGER NOT NULL,
+	description      TEXT    NOT NULL,
+	quantity         INTEGER NOT NULL DEFAULT 100,
+	unit             TEXT    NOT NULL DEFAULT 'ks',
+	unit_price       INTEGER NOT NULL DEFAULT 0,
+	vat_rate_percent INTEGER NOT NULL DEFAULT 0,
+	vat_amount       INTEGER NOT NULL DEFAULT 0,
+	total_amount     INTEGER NOT NULL DEFAULT 0,
+	sort_order       INTEGER NOT NULL DEFAULT 0,
+	created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+	FOREIGN KEY (company_id, invoice_id) REFERENCES invoices(company_id, id) ON DELETE CASCADE
+);
+INSERT INTO invoice_items (
+	id, company_id, invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, vat_amount, total_amount, sort_order, created_at
+)
+SELECT
+	id, 1, invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, vat_amount, total_amount, sort_order, created_at
+FROM invoice_items__old;
+DROP TABLE invoice_items__old;
+CREATE INDEX idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+CREATE INDEX idx_invoice_items_company    ON invoice_items(company_id);
+
+-- Rebuild: recurring_invoice_items gains company_id and a composite FK to
+-- recurring_invoices(company_id, id). Original schema had no ON DELETE
+-- CASCADE on the single-column FK; the composite FK keeps the same default
+-- (NO ACTION) so behaviour is preserved.
+ALTER TABLE recurring_invoice_items RENAME TO recurring_invoice_items__old;
+CREATE TABLE recurring_invoice_items (
+	id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+	company_id           INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id),
+	recurring_invoice_id INTEGER NOT NULL,
+	description          TEXT    NOT NULL,
+	quantity             INTEGER NOT NULL,
+	unit                 TEXT    NOT NULL DEFAULT 'ks',
+	unit_price           INTEGER NOT NULL,
+	vat_rate_percent     INTEGER NOT NULL DEFAULT 21,
+	sort_order           INTEGER NOT NULL DEFAULT 0,
+	FOREIGN KEY (company_id, recurring_invoice_id) REFERENCES recurring_invoices(company_id, id)
+);
+INSERT INTO recurring_invoice_items (
+	id, company_id, recurring_invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, sort_order
+)
+SELECT
+	id, 1, recurring_invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, sort_order
+FROM recurring_invoice_items__old;
+DROP TABLE recurring_invoice_items__old;
+CREATE INDEX idx_recurring_invoice_items_company ON recurring_invoice_items(company_id);
+CREATE INDEX idx_recurring_invoice_items_parent  ON recurring_invoice_items(recurring_invoice_id);
+
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+
+-- Reverse: invoice graph composite FK on children, then parent column drops.
+-- Children must be rebuilt first so the composite FK referencing the parent's
+-- (company_id, id) is gone before we drop company_id from the parents.
+
+-- Rebuild recurring_invoice_items back to single-column FK.
+DROP INDEX IF EXISTS idx_recurring_invoice_items_parent;
+DROP INDEX IF EXISTS idx_recurring_invoice_items_company;
+ALTER TABLE recurring_invoice_items RENAME TO recurring_invoice_items__new;
+CREATE TABLE recurring_invoice_items (
+	id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+	recurring_invoice_id INTEGER NOT NULL REFERENCES recurring_invoices(id),
+	description          TEXT    NOT NULL,
+	quantity             INTEGER NOT NULL,
+	unit                 TEXT    NOT NULL DEFAULT 'ks',
+	unit_price           INTEGER NOT NULL,
+	vat_rate_percent     INTEGER NOT NULL DEFAULT 21,
+	sort_order           INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO recurring_invoice_items (
+	id, recurring_invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, sort_order
+)
+SELECT
+	id, recurring_invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, sort_order
+FROM recurring_invoice_items__new
+WHERE company_id = 1;
+DROP TABLE recurring_invoice_items__new;
+
+-- Rebuild invoice_items back to single-column FK ON DELETE CASCADE.
+DROP INDEX IF EXISTS idx_invoice_items_company;
+DROP INDEX IF EXISTS idx_invoice_items_invoice_id;
+ALTER TABLE invoice_items RENAME TO invoice_items__new;
+CREATE TABLE invoice_items (
+	id               INTEGER PRIMARY KEY AUTOINCREMENT,
+	invoice_id       INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+	description      TEXT    NOT NULL,
+	quantity         INTEGER NOT NULL DEFAULT 100,
+	unit             TEXT    NOT NULL DEFAULT 'ks',
+	unit_price       INTEGER NOT NULL DEFAULT 0,
+	vat_rate_percent INTEGER NOT NULL DEFAULT 0,
+	vat_amount       INTEGER NOT NULL DEFAULT 0,
+	total_amount     INTEGER NOT NULL DEFAULT 0,
+	sort_order       INTEGER NOT NULL DEFAULT 0,
+	created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+INSERT INTO invoice_items (
+	id, invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, vat_amount, total_amount, sort_order, created_at
+)
+SELECT
+	id, invoice_id, description, quantity, unit, unit_price,
+	vat_rate_percent, vat_amount, total_amount, sort_order, created_at
+FROM invoice_items__new
+WHERE company_id = 1;
+DROP TABLE invoice_items__new;
+CREATE INDEX idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+
+-- Reverse parent column adds.
+DROP INDEX IF EXISTS idx_recurring_invoices_company_id;
+DROP INDEX IF EXISTS idx_invoices_company_id;
+DROP INDEX IF EXISTS idx_recurring_invoices_company;
+DROP INDEX IF EXISTS idx_invoices_company;
+ALTER TABLE recurring_invoices DROP COLUMN company_id;
+ALTER TABLE invoices           DROP COLUMN company_id;
 
 -- Restore the 17 identity keys from company id=1 (best-effort; multi-company
 -- users will lose everything but the first company on downgrade).
@@ -186,11 +327,13 @@ UNION ALL SELECT 'accent_color', COALESCE(accent_color, '') FROM companies WHERE
 
 -- Reverse: invoice_sequences rebuild back to UNIQUE(prefix, year).
 -- Best-effort: only company 1's sequences survive the downgrade.
+-- Mirror of Up: build under a temp name first, then drop+rename, to avoid
+-- silently rewriting the FK reference in invoices.sequence_id when the
+-- live table is renamed.
 DROP INDEX IF EXISTS idx_invoice_sequences_company;
 DROP INDEX IF EXISTS idx_invoice_sequences_deleted_at;
 DROP INDEX IF EXISTS idx_invoice_sequences_year;
-ALTER TABLE invoice_sequences RENAME TO invoice_sequences__new;
-CREATE TABLE invoice_sequences (
+CREATE TABLE invoice_sequences__new (
 	id             INTEGER PRIMARY KEY AUTOINCREMENT,
 	prefix         TEXT    NOT NULL,
 	next_number    INTEGER NOT NULL DEFAULT 1,
@@ -201,10 +344,11 @@ CREATE TABLE invoice_sequences (
 	deleted_at     TEXT,
 	UNIQUE(prefix, year)
 );
-INSERT INTO invoice_sequences (id, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at)
-SELECT id, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at FROM invoice_sequences__new
+INSERT INTO invoice_sequences__new (id, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at)
+SELECT id, prefix, next_number, year, format_pattern, created_at, updated_at, deleted_at FROM invoice_sequences
 WHERE company_id = 1;
-DROP TABLE invoice_sequences__new;
+DROP TABLE invoice_sequences;
+ALTER TABLE invoice_sequences__new RENAME TO invoice_sequences;
 CREATE INDEX idx_invoice_sequences_year ON invoice_sequences(year);
 CREATE INDEX idx_invoice_sequences_deleted_at ON invoice_sequences(deleted_at);
 

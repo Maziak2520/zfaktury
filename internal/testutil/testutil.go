@@ -169,8 +169,12 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 		seqID = inv.SequenceID
 	}
 
+	// Default to company id=1 (the company seeded by NewTestDB). A future task
+	// may widen this to accept an explicit companyID once multi-company tests
+	// arrive; for now every fixture invoice lives in the default company.
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO invoices (
+			company_id,
 			sequence_id, invoice_number, type, status,
 			issue_date, due_date, delivery_date, variable_symbol, constant_symbol,
 			customer_id, currency_code, exchange_rate,
@@ -178,7 +182,8 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 			subtotal_amount, vat_amount, total_amount, paid_amount,
 			notes, internal_notes, sent_at, paid_at,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		1,
 		seqID, inv.InvoiceNumber, inv.Type, inv.Status,
 		inv.IssueDate.Format("2006-01-02"), inv.DueDate.Format("2006-01-02"), inv.DeliveryDate.Format("2006-01-02"), inv.VariableSymbol, inv.ConstantSymbol,
 		inv.CustomerID, inv.CurrencyCode, inv.ExchangeRate,
@@ -201,11 +206,16 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 		item := &inv.Items[i]
 		item.InvoiceID = invoiceID
 
+		// company_id matches the parent invoice (default company id=1) so the
+		// composite FK (company_id, invoice_id) -> invoices(company_id, id)
+		// resolves; mismatched values are rejected by migration 025's FK.
 		itemResult, err := db.ExecContext(context.Background(), `
 			INSERT INTO invoice_items (
+				company_id,
 				invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, vat_amount, total_amount, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			1,
 			item.InvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.VATAmount, item.TotalAmount, item.SortOrder,
 		)
@@ -285,9 +295,10 @@ func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
 func SeedInvoiceSequence(t *testing.T, db *sql.DB, prefix string, year int) int64 {
 	t.Helper()
 
+	// Default to company id=1; mirrors SeedInvoice.
 	result, err := db.ExecContext(context.Background(), `
-		INSERT INTO invoice_sequences (prefix, next_number, year, format_pattern)
-		VALUES (?, 1, ?, '{prefix}{year}{number:04d}')`, prefix, year)
+		INSERT INTO invoice_sequences (company_id, prefix, next_number, year, format_pattern)
+		VALUES (1, ?, 1, ?, '{prefix}{year}{number:04d}')`, prefix, year)
 	if err != nil {
 		t.Fatalf("seeding invoice sequence: %v", err)
 	}
