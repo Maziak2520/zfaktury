@@ -13,7 +13,8 @@ func TestMultiCompanyMigration(t *testing.T) {
 
 // TestMultiCompanyMigrationProductionSized runs migration 025 against
 // a synthetic ~5k-invoice fixture and asserts completion under 30s.
-// Gated behind -tags integration so it doesn't run on every CI build.
+// Gated by the ZFAKTURY_RUN_BIG_MIGRATION_TEST environment variable
+// (see Phase 2 task 15) so it stays out of the default CI run.
 func TestMultiCompanyMigrationProductionSized(t *testing.T) {
 	t.Skip("populated in Phase 2 task 15")
 }
