@@ -1,14 +1,113 @@
 package database
 
 import (
+	"database/sql"
+	"embed"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
-// TestMultiCompanyMigration validates that migration 025 transforms
-// a single-company v024 database into a multi-company v025 database
-// with no data loss. Populated incrementally across Phase 2 tasks.
-func TestMultiCompanyMigration(t *testing.T) {
-	t.Skip("populated in Phase 2 tasks 5-15")
+//go:embed testdata/v024_seed.sql
+var v024SeedFS embed.FS
+
+// migrateUpTo runs every migration in internal/database/migrations
+// up to and including the targetVersion.
+func migrateUpTo(t *testing.T, db *sql.DB, targetVersion int64) {
+	t.Helper()
+	goose.SetBaseFS(migrationsFS) // existing embed.FS in this package
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("set dialect: %v", err)
+	}
+	if err := goose.UpTo(db, "migrations", targetVersion); err != nil {
+		t.Fatalf("goose up to %d: %v", targetVersion, err)
+	}
+}
+
+func openMigratedDB(t *testing.T, applyV025 bool) *sql.DB {
+	t.Helper()
+	tmp := filepath.Join(t.TempDir(), "test.db")
+	db, err := sql.Open("sqlite", tmp+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	migrateUpTo(t, db, 24)
+
+	seed, err := v024SeedFS.ReadFile("testdata/v024_seed.sql")
+	if err != nil {
+		t.Fatalf("read seed: %v", err)
+	}
+	if _, err := db.Exec(string(seed)); err != nil {
+		t.Fatalf("apply seed: %v", err)
+	}
+
+	if applyV025 {
+		migrateUpTo(t, db, 25)
+	}
+	return db
+}
+
+func TestMultiCompanyMigration_CreatesDefaultCompanyFromSettings(t *testing.T) {
+	db := openMigratedDB(t, true)
+	var name, ico, dic string
+	var vat int
+	err := db.QueryRow(`SELECT name, ico, dic, vat_registered FROM companies WHERE id = 1`).Scan(&name, &ico, &dic, &vat)
+	if err != nil {
+		t.Fatalf("query company: %v", err)
+	}
+	if name != "Manas OSVČ" || ico != "12345678" || dic != "CZ12345678" || vat != 1 {
+		t.Errorf("got name=%q ico=%q dic=%q vat=%d", name, ico, dic, vat)
+	}
+}
+
+func TestMultiCompanyMigration_StripsIdentityKeysFromSettings(t *testing.T) {
+	db := openMigratedDB(t, true)
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key IN
+		('company_name','ico','dic','vat_registered','street','house_number','city','zip',
+		 'email','phone','first_name','last_name','bank_account','bank_code','iban','swift',
+		 'logo_path','accent_color')`).Scan(&n)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("found %d identity keys remaining in settings, want 0", n)
+	}
+}
+
+func TestMultiCompanyMigration_PreservesNonIdentitySettings(t *testing.T) {
+	db := openMigratedDB(t, true)
+	var v string
+	if err := db.QueryRow(`SELECT value FROM settings WHERE key = 'default_payment_method'`).Scan(&v); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if v != "bank_transfer" {
+		t.Errorf("value = %q, want bank_transfer", v)
+	}
+}
+
+func TestMultiCompanyMigration_FreshInstallProducesEmptyCompanies(t *testing.T) {
+	// Fresh install: no v024 seed applied.
+	tmp := filepath.Join(t.TempDir(), "fresh.db")
+	db, err := sql.Open("sqlite", tmp+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	migrateUpTo(t, db, 25)
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM companies`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("fresh install company count = %d, want 0", n)
+	}
 }
 
 // TestMultiCompanyMigrationProductionSized runs migration 025 against
@@ -16,5 +115,8 @@ func TestMultiCompanyMigration(t *testing.T) {
 // Gated by the ZFAKTURY_RUN_BIG_MIGRATION_TEST environment variable
 // (see Phase 2 task 15) so it stays out of the default CI run.
 func TestMultiCompanyMigrationProductionSized(t *testing.T) {
+	if os.Getenv("ZFAKTURY_RUN_BIG_MIGRATION_TEST") == "" {
+		t.Skip("set ZFAKTURY_RUN_BIG_MIGRATION_TEST=1 to enable")
+	}
 	t.Skip("populated in Phase 2 task 15")
 }
