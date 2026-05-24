@@ -23,9 +23,9 @@ INSERT INTO settings (key, value) VALUES
 	('accent_color',    '#1a56db'),
 	('default_payment_method', 'bank_transfer');
 
-INSERT INTO contacts (id, name, ico, dic, email, created_at, updated_at) VALUES
-	(1, 'Keboola s.r.o.',    '25620916', 'CZ25620916', 'fakturace@keboola.com', '2026-01-15T10:00:00Z', '2026-01-15T10:00:00Z'),
-	(2, 'Acme spol. s r.o.', '11223344', NULL,         'billing@acme.cz',       '2026-02-01T10:00:00Z', '2026-02-01T10:00:00Z');
+INSERT INTO contacts (id, type, name, ico, dic, email, created_at, updated_at) VALUES
+	(1, 'company', 'Keboola s.r.o.',    '25620916', 'CZ25620916', 'fakturace@keboola.com', '2026-01-15T10:00:00Z', '2026-01-15T10:00:00Z'),
+	(2, 'company', 'Acme spol. s r.o.', '11223344', NULL,         'billing@acme.cz',       '2026-02-01T10:00:00Z', '2026-02-01T10:00:00Z');
 
 INSERT INTO invoice_sequences (id, prefix, next_number, year, format_pattern) VALUES
 	(1, 'FV', 3, 2026, '{prefix}{year}{number:04d}'),

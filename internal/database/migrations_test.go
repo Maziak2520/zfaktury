@@ -14,16 +14,26 @@ import (
 //go:embed testdata/v024_seed.sql
 var v024SeedFS embed.FS
 
+func TestMain(m *testing.M) {
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		panic("set goose dialect: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
+
 // migrateUpTo runs every migration in internal/database/migrations
 // up to and including the targetVersion.
 func migrateUpTo(t *testing.T, db *sql.DB, targetVersion int64) {
 	t.Helper()
-	goose.SetBaseFS(migrationsFS) // existing embed.FS in this package
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("set dialect: %v", err)
+	if _, err := db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+		t.Fatalf("disable fk: %v", err)
 	}
 	if err := goose.UpTo(db, "migrations", targetVersion); err != nil {
 		t.Fatalf("goose up to %d: %v", targetVersion, err)
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		t.Fatalf("re-enable fk: %v", err)
 	}
 }
 
@@ -56,12 +66,21 @@ func TestMultiCompanyMigration_CreatesDefaultCompanyFromSettings(t *testing.T) {
 	db := openMigratedDB(t, true)
 	var name, ico, dic string
 	var vat int
-	err := db.QueryRow(`SELECT name, ico, dic, vat_registered FROM companies WHERE id = 1`).Scan(&name, &ico, &dic, &vat)
+	var accentColor sql.NullString
+	var logoPath sql.NullString
+	err := db.QueryRow(`SELECT name, ico, dic, vat_registered, accent_color, logo_path FROM companies WHERE id = 1`).
+		Scan(&name, &ico, &dic, &vat, &accentColor, &logoPath)
 	if err != nil {
 		t.Fatalf("query company: %v", err)
 	}
 	if name != "Manas OSVČ" || ico != "12345678" || dic != "CZ12345678" || vat != 1 {
 		t.Errorf("got name=%q ico=%q dic=%q vat=%d", name, ico, dic, vat)
+	}
+	if !accentColor.Valid || accentColor.String != "#1a56db" {
+		t.Errorf("accent_color = %v, want '#1a56db'", accentColor)
+	}
+	if logoPath.Valid {
+		t.Errorf("logo_path = %v, want NULL (empty string seeded; NULLIF should drop it)", logoPath)
 	}
 }
 
