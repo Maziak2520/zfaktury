@@ -8,13 +8,16 @@ import (
 )
 
 // ContactRepo defines the persistence interface for contacts.
+//
+// All methods are scoped to a single company via the companyID parameter;
+// rows belonging to other companies are invisible.
 type ContactRepo interface {
-	Create(ctx context.Context, contact *domain.Contact) error
-	Update(ctx context.Context, contact *domain.Contact) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.Contact, error)
-	List(ctx context.Context, filter domain.ContactFilter) ([]domain.Contact, int, error)
-	FindByICO(ctx context.Context, ico string) (*domain.Contact, error)
+	Create(ctx context.Context, companyID int64, contact *domain.Contact) error
+	Update(ctx context.Context, companyID int64, contact *domain.Contact) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.Contact, error)
+	List(ctx context.Context, companyID int64, filter domain.ContactFilter) ([]domain.Contact, int, error)
+	FindByICO(ctx context.Context, companyID int64, ico string) (*domain.Contact, error)
 }
 
 // InvoiceRepo defines the persistence interface for invoices.
@@ -42,25 +45,31 @@ type ExpenseRepo interface {
 }
 
 // InvoiceSequenceRepo defines the persistence interface for invoice sequences.
+//
+// All methods are scoped to a single company via the companyID parameter;
+// the UNIQUE(company_id, prefix, year) constraint added by migration 025
+// means the same prefix+year tuple can be reused across companies.
 type InvoiceSequenceRepo interface {
-	Create(ctx context.Context, seq *domain.InvoiceSequence) error
-	Update(ctx context.Context, seq *domain.InvoiceSequence) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.InvoiceSequence, error)
-	List(ctx context.Context) ([]domain.InvoiceSequence, error)
-	GetByPrefixAndYear(ctx context.Context, prefix string, year int) (*domain.InvoiceSequence, error)
-	CountInvoicesBySequenceID(ctx context.Context, sequenceID int64) (int, error)
-	MaxUsedNumber(ctx context.Context, sequenceID int64) (int, error)
+	Create(ctx context.Context, companyID int64, seq *domain.InvoiceSequence) error
+	Update(ctx context.Context, companyID int64, seq *domain.InvoiceSequence) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.InvoiceSequence, error)
+	List(ctx context.Context, companyID int64) ([]domain.InvoiceSequence, error)
+	GetByPrefixAndYear(ctx context.Context, companyID int64, prefix string, year int) (*domain.InvoiceSequence, error)
+	CountInvoicesBySequenceID(ctx context.Context, companyID, sequenceID int64) (int, error)
+	MaxUsedNumber(ctx context.Context, companyID, sequenceID int64) (int, error)
 }
 
 // CategoryRepo defines the persistence interface for expense categories.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type CategoryRepo interface {
-	Create(ctx context.Context, cat *domain.ExpenseCategory) error
-	Update(ctx context.Context, cat *domain.ExpenseCategory) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.ExpenseCategory, error)
-	GetByKey(ctx context.Context, key string) (*domain.ExpenseCategory, error)
-	List(ctx context.Context) ([]domain.ExpenseCategory, error)
+	Create(ctx context.Context, companyID int64, cat *domain.ExpenseCategory) error
+	Update(ctx context.Context, companyID int64, cat *domain.ExpenseCategory) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.ExpenseCategory, error)
+	GetByKey(ctx context.Context, companyID int64, key string) (*domain.ExpenseCategory, error)
+	List(ctx context.Context, companyID int64) ([]domain.ExpenseCategory, error)
 }
 
 // DocumentRepo defines the persistence interface for expense documents.

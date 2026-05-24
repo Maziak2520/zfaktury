@@ -21,7 +21,7 @@ func TestCategoryRepository_Create(t *testing.T) {
 		SortOrder: 50,
 	}
 
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestCategoryRepository_Create_DuplicateKey(t *testing.T) {
 		LabelCS: "Prvni",
 		LabelEN: "First",
 	}
-	if err := repo.Create(ctx, cat1); err != nil {
+	if err := repo.Create(ctx, 1, cat1); err != nil {
 		t.Fatalf("Create() first: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestCategoryRepository_Create_DuplicateKey(t *testing.T) {
 		LabelCS: "Druha",
 		LabelEN: "Second",
 	}
-	err := repo.Create(ctx, cat2)
+	err := repo.Create(ctx, 1, cat2)
 	if err == nil {
 		t.Error("expected error for duplicate key")
 	}
@@ -70,11 +70,11 @@ func TestCategoryRepository_GetByID(t *testing.T) {
 		Color:     "#123456",
 		SortOrder: 10,
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, cat.ID)
+	got, err := repo.GetByID(ctx, 1, cat.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestCategoryRepository_GetByID_NotFound(t *testing.T) {
 	repo := NewCategoryRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByID(ctx, 99999)
+	_, err := repo.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent category")
 	}
@@ -110,7 +110,7 @@ func TestCategoryRepository_GetByKey(t *testing.T) {
 	ctx := context.Background()
 
 	// Default categories are seeded by migration, try fetching one.
-	got, err := repo.GetByKey(ctx, "software")
+	got, err := repo.GetByKey(ctx, 1, "software")
 	if err != nil {
 		t.Fatalf("GetByKey() error: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestCategoryRepository_GetByKey_NotFound(t *testing.T) {
 	repo := NewCategoryRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByKey(ctx, "nonexistent_key")
+	_, err := repo.GetByKey(ctx, 1, "nonexistent_key")
 	if err == nil {
 		t.Error("expected error for non-existent key")
 	}
@@ -148,18 +148,18 @@ func TestCategoryRepository_Update(t *testing.T) {
 		LabelEN: "Before",
 		Color:   "#000000",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	cat.LabelCS = "Po"
 	cat.LabelEN = "After"
 	cat.Color = "#FFFFFF"
-	if err := repo.Update(ctx, cat); err != nil {
+	if err := repo.Update(ctx, 1, cat); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, cat.ID)
+	got, err := repo.GetByID(ctx, 1, cat.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -184,15 +184,15 @@ func TestCategoryRepository_Delete(t *testing.T) {
 		LabelCS: "Smazat",
 		LabelEN: "Delete",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := repo.Delete(ctx, cat.ID); err != nil {
+	if err := repo.Delete(ctx, 1, cat.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	_, err := repo.GetByID(ctx, cat.ID)
+	_, err := repo.GetByID(ctx, 1, cat.ID)
 	if err == nil {
 		t.Error("expected error when getting deleted category")
 	}
@@ -203,7 +203,7 @@ func TestCategoryRepository_Delete_NotFound(t *testing.T) {
 	repo := NewCategoryRepository(db)
 	ctx := context.Background()
 
-	err := repo.Delete(ctx, 99999)
+	err := repo.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent category")
 	}
@@ -214,7 +214,7 @@ func TestCategoryRepository_List_Order(t *testing.T) {
 	repo := NewCategoryRepository(db)
 	ctx := context.Background()
 
-	categories, err := repo.List(ctx)
+	categories, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -243,21 +243,21 @@ func TestCategoryRepository_List_ExcludesSoftDeleted(t *testing.T) {
 		LabelCS: "Smazat",
 		LabelEN: "Delete",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	beforeList, err := repo.List(ctx)
+	beforeList, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() before error: %v", err)
 	}
 	beforeCount := len(beforeList)
 
-	if err := repo.Delete(ctx, cat.ID); err != nil {
+	if err := repo.Delete(ctx, 1, cat.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	afterList, err := repo.List(ctx)
+	afterList, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() after error: %v", err)
 	}

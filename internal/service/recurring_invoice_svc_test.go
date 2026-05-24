@@ -23,11 +23,11 @@ func newRecurringInvoiceTestStack(t *testing.T) (*RecurringInvoiceService, *Invo
 	recurringSvc := NewRecurringInvoiceService(recurringRepo, invoiceSvc, nil)
 
 	// Seed a default invoice sequence.
-	testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	createCustomer := func() int64 {
 		c := &domain.Contact{Name: "Test Customer", Type: domain.ContactTypeCompany}
-		if err := contactSvc.Create(context.Background(), c); err != nil {
+		if err := contactSvc.Create(context.Background(), 1, c); err != nil {
 			t.Fatalf("creating customer: %v", err)
 		}
 		return c.ID

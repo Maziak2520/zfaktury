@@ -17,7 +17,7 @@ func setupInvoiceTestDB(t *testing.T) (*sql.DB, int64, int64) {
 	t.Helper()
 	db := testutil.NewTestDB(t)
 	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Test Customer"})
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 	return db, customer.ID, seqID
 }
 
@@ -248,7 +248,7 @@ func TestInvoiceRepository_List_SearchFilter(t *testing.T) {
 	ctx := context.Background()
 
 	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Searchable Corp"})
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	inv := makeRepoInvoice(customer.ID, seqID)
 	repo.Create(ctx, inv)
@@ -291,7 +291,7 @@ func TestInvoiceRepository_GetNextNumber(t *testing.T) {
 	repo := NewInvoiceRepository(db)
 	ctx := context.Background()
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	num1, err := repo.GetNextNumber(ctx, seqID)
 	if err != nil {

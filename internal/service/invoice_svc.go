@@ -9,6 +9,14 @@ import (
 	"github.com/zajca/zfaktury/internal/repository"
 )
 
+// defaultCompanyID is the implicit company used by services that have not
+// yet been threaded with companyID in Phase 3 (T21+). It matches the
+// migration-025 backfill default (id=1) and the testutil seed.
+//
+// Remove every reference to this constant as each vertical (invoices,
+// expenses, etc.) gains an explicit companyID parameter.
+const defaultCompanyID int64 = 1
+
 // InvoiceService provides business logic for invoice management.
 type InvoiceService struct {
 	repo      repository.InvoiceRepo
@@ -39,8 +47,11 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 		return fmt.Errorf("due date is required: %w", domain.ErrInvalidInput)
 	}
 
-	// Verify customer exists.
-	_, err := s.contacts.GetByID(ctx, invoice.CustomerID)
+	// Verify customer exists. The InvoiceService itself is not yet
+	// company-scoped (T21 will thread companyID through invoices); for now
+	// every invoice is treated as belonging to the default company (id=1),
+	// matching the migration-025 backfill and the testutil seed defaults.
+	_, err := s.contacts.GetByID(ctx, defaultCompanyID, invoice.CustomerID)
 	if err != nil {
 		return fmt.Errorf("fetching customer: %w", err)
 	}
@@ -72,7 +83,7 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 			prefix = "DN"
 		}
 		year := invoice.IssueDate.Year()
-		seq, err := s.sequences.GetOrCreateForYear(ctx, prefix, year)
+		seq, err := s.sequences.GetOrCreateForYear(ctx, defaultCompanyID, prefix, year)
 		if err != nil {
 			return fmt.Errorf("assigning sequence: %w", err)
 		}

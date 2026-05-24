@@ -603,16 +603,18 @@ type fakturoidMockContactRepo struct {
 	findByICOResult map[string]*domain.Contact
 }
 
-func (m *fakturoidMockContactRepo) Create(_ context.Context, c *domain.Contact) error {
+func (m *fakturoidMockContactRepo) Create(_ context.Context, _ int64, c *domain.Contact) error {
 	c.ID = 1000 // assign a fake ID
 	return nil
 }
-func (m *fakturoidMockContactRepo) Update(_ context.Context, _ *domain.Contact) error { return nil }
-func (m *fakturoidMockContactRepo) Delete(_ context.Context, _ int64) error           { return nil }
-func (m *fakturoidMockContactRepo) GetByID(_ context.Context, _ int64) (*domain.Contact, error) {
+func (m *fakturoidMockContactRepo) Update(_ context.Context, _ int64, _ *domain.Contact) error {
+	return nil
+}
+func (m *fakturoidMockContactRepo) Delete(_ context.Context, _, _ int64) error { return nil }
+func (m *fakturoidMockContactRepo) GetByID(_ context.Context, _, _ int64) (*domain.Contact, error) {
 	return nil, nil
 }
-func (m *fakturoidMockContactRepo) FindByICO(_ context.Context, ico string) (*domain.Contact, error) {
+func (m *fakturoidMockContactRepo) FindByICO(_ context.Context, _ int64, ico string) (*domain.Contact, error) {
 	if m.findByICOResult != nil {
 		if c, ok := m.findByICOResult[ico]; ok {
 			return c, nil
@@ -620,7 +622,7 @@ func (m *fakturoidMockContactRepo) FindByICO(_ context.Context, ico string) (*do
 	}
 	return nil, nil
 }
-func (m *fakturoidMockContactRepo) List(_ context.Context, _ domain.ContactFilter) ([]domain.Contact, int, error) {
+func (m *fakturoidMockContactRepo) List(_ context.Context, _ int64, _ domain.ContactFilter) ([]domain.Contact, int, error) {
 	return nil, 0, nil
 }
 

@@ -33,11 +33,12 @@ func setupInvoiceRouter(t *testing.T) (*chi.Mux, int64) {
 	invoiceHandler := NewInvoiceHandler(invoiceSvc, nil, nil, nil)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/contacts", contactHandler.Routes())
 	r.Mount("/api/v1/invoices", invoiceHandler.Routes())
 
 	// Seed an invoice sequence.
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	return r, seqID
 }
@@ -955,10 +956,11 @@ func setupInvoiceRouterWithSettings(t *testing.T) (*chi.Mux, *sql.DB, int64) {
 	invoiceHandler := NewInvoiceHandler(invoiceSvc, settingsSvc, pdfGen, isdocGen)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/contacts", contactHandler.Routes())
 	r.Mount("/api/v1/invoices", invoiceHandler.Routes())
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 	return r, db, seqID
 }
 

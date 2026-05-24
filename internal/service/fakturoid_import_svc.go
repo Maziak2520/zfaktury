@@ -108,7 +108,7 @@ func (s *FakturoidImportService) ImportAll(ctx context.Context, client Fakturoid
 		}
 
 		contact := item.Entity.(*domain.Contact)
-		if err := s.contactSvc.Create(ctx, contact); err != nil {
+		if err := s.contactSvc.Create(ctx, defaultCompanyID, contact); err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("contact %d: %v", item.FakturoidID, err))
 			continue
 		}
@@ -329,7 +329,7 @@ func (s *FakturoidImportService) previewContact(ctx context.Context, subj faktur
 
 	// Check by ICO
 	if contact.ICO != "" {
-		existing, err := s.contactRepo.FindByICO(ctx, contact.ICO)
+		existing, err := s.contactRepo.FindByICO(ctx, defaultCompanyID, contact.ICO)
 		if err == nil && existing != nil {
 			return domain.FakturoidImportItem{
 				FakturoidID: subj.ID,
@@ -342,7 +342,7 @@ func (s *FakturoidImportService) previewContact(ctx context.Context, subj faktur
 	}
 
 	// Check by exact name
-	contacts, _, err := s.contactRepo.List(ctx, domain.ContactFilter{Search: contact.Name, Limit: 1})
+	contacts, _, err := s.contactRepo.List(ctx, defaultCompanyID, domain.ContactFilter{Search: contact.Name, Limit: 1})
 	if err == nil && len(contacts) > 0 && contacts[0].Name == contact.Name {
 		existingID := contacts[0].ID
 		return domain.FakturoidImportItem{

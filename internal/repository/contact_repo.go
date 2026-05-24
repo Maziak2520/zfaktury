@@ -20,8 +20,8 @@ func NewContactRepository(db *sql.DB) *ContactRepository {
 	return &ContactRepository{db: db}
 }
 
-// Create inserts a new contact into the database.
-func (r *ContactRepository) Create(ctx context.Context, c *domain.Contact) error {
+// Create inserts a new contact into the database scoped to the given company.
+func (r *ContactRepository) Create(ctx context.Context, companyID int64, c *domain.Contact) error {
 	now := time.Now()
 	c.CreatedAt = now
 	c.UpdatedAt = now
@@ -33,11 +33,13 @@ func (r *ContactRepository) Create(ctx context.Context, c *domain.Contact) error
 
 	result, err := r.db.ExecContext(ctx, `
 		INSERT INTO contacts (
+			company_id,
 			type, name, ico, dic, street, city, zip, country,
 			email, phone, web, bank_account, bank_code, iban, swift,
 			payment_terms_days, tags, notes, is_favorite, vat_unreliable_at,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		c.Type, c.Name, c.ICO, c.DIC, c.Street, c.City, c.ZIP, c.Country,
 		c.Email, c.Phone, c.Web, c.BankAccount, c.BankCode, c.IBAN, c.SWIFT,
 		c.PaymentTermsDays, c.Tags, c.Notes, c.IsFavorite, vatUnreliableAt,
@@ -55,8 +57,8 @@ func (r *ContactRepository) Create(ctx context.Context, c *domain.Contact) error
 	return nil
 }
 
-// Update modifies an existing contact.
-func (r *ContactRepository) Update(ctx context.Context, c *domain.Contact) error {
+// Update modifies an existing contact within the given company.
+func (r *ContactRepository) Update(ctx context.Context, companyID int64, c *domain.Contact) error {
 	c.UpdatedAt = time.Now()
 
 	var updateVatUnreliableAt any
@@ -70,11 +72,11 @@ func (r *ContactRepository) Update(ctx context.Context, c *domain.Contact) error
 			email = ?, phone = ?, web = ?, bank_account = ?, bank_code = ?, iban = ?, swift = ?,
 			payment_terms_days = ?, tags = ?, notes = ?, is_favorite = ?, vat_unreliable_at = ?,
 			updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL`,
+		WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
 		c.Type, c.Name, c.ICO, c.DIC, c.Street, c.City, c.ZIP, c.Country,
 		c.Email, c.Phone, c.Web, c.BankAccount, c.BankCode, c.IBAN, c.SWIFT,
 		c.PaymentTermsDays, c.Tags, c.Notes, c.IsFavorite, updateVatUnreliableAt,
-		c.UpdatedAt.Format(time.RFC3339), c.ID,
+		c.UpdatedAt.Format(time.RFC3339), c.ID, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating contact %d: %w", c.ID, err)
@@ -82,13 +84,13 @@ func (r *ContactRepository) Update(ctx context.Context, c *domain.Contact) error
 	return nil
 }
 
-// Delete performs a soft delete on a contact.
-func (r *ContactRepository) Delete(ctx context.Context, id int64) error {
+// Delete performs a soft delete on a contact within the given company.
+func (r *ContactRepository) Delete(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	nowStr := now.Format(time.RFC3339)
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE contacts SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		nowStr, nowStr, id,
+		UPDATE contacts SET deleted_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		nowStr, nowStr, id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("soft-deleting contact %d: %w", id, err)
@@ -99,13 +101,13 @@ func (r *ContactRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("checking rows affected for contact %d: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("contact %d not found or already deleted", id)
+		return fmt.Errorf("contact %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// GetByID retrieves a single contact by ID.
-func (r *ContactRepository) GetByID(ctx context.Context, id int64) (*domain.Contact, error) {
+// GetByID retrieves a single contact by ID within the given company.
+func (r *ContactRepository) GetByID(ctx context.Context, companyID, id int64) (*domain.Contact, error) {
 	c := &domain.Contact{}
 	var createdAtStr string
 	var updatedAtStr string
@@ -117,7 +119,7 @@ func (r *ContactRepository) GetByID(ctx context.Context, id int64) (*domain.Cont
 			email, phone, web, bank_account, bank_code, iban, swift,
 			payment_terms_days, tags, notes, is_favorite, vat_unreliable_at,
 			created_at, updated_at, deleted_at
-		FROM contacts WHERE id = ? AND deleted_at IS NULL`, id,
+		FROM contacts WHERE id = ? AND company_id = ? AND deleted_at IS NULL`, id, companyID,
 	).Scan(
 		&c.ID, &c.Type, &c.Name, &c.ICO, &c.DIC, &c.Street, &c.City, &c.ZIP, &c.Country,
 		&c.Email, &c.Phone, &c.Web, &c.BankAccount, &c.BankCode, &c.IBAN, &c.SWIFT,
@@ -126,7 +128,7 @@ func (r *ContactRepository) GetByID(ctx context.Context, id int64) (*domain.Cont
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("contact %d not found: %w", id, err)
+			return nil, fmt.Errorf("contact %d not found: %w", id, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying contact %d: %w", id, err)
 	}
@@ -149,11 +151,11 @@ func (r *ContactRepository) GetByID(ctx context.Context, id int64) (*domain.Cont
 	return c, nil
 }
 
-// List retrieves contacts matching the given filter with pagination.
+// List retrieves contacts matching the given filter with pagination, scoped to the given company.
 // Returns the matching contacts, total count, and any error.
-func (r *ContactRepository) List(ctx context.Context, filter domain.ContactFilter) ([]domain.Contact, int, error) {
-	where := "deleted_at IS NULL"
-	args := []any{}
+func (r *ContactRepository) List(ctx context.Context, companyID int64, filter domain.ContactFilter) ([]domain.Contact, int, error) {
+	where := "company_id = ? AND deleted_at IS NULL"
+	args := []any{companyID}
 
 	if filter.Search != "" {
 		where += " AND (name LIKE ? OR ico LIKE ? OR email LIKE ?)"
@@ -232,8 +234,8 @@ func (r *ContactRepository) List(ctx context.Context, filter domain.ContactFilte
 	return contacts, total, nil
 }
 
-// FindByICO finds a contact by its Czech business identification number (ICO).
-func (r *ContactRepository) FindByICO(ctx context.Context, ico string) (*domain.Contact, error) {
+// FindByICO finds a contact by its Czech business identification number (ICO) within the given company.
+func (r *ContactRepository) FindByICO(ctx context.Context, companyID int64, ico string) (*domain.Contact, error) {
 	c := &domain.Contact{}
 	var createdAtStr string
 	var updatedAtStr string
@@ -245,7 +247,7 @@ func (r *ContactRepository) FindByICO(ctx context.Context, ico string) (*domain.
 			email, phone, web, bank_account, bank_code, iban, swift,
 			payment_terms_days, tags, notes, is_favorite, vat_unreliable_at,
 			created_at, updated_at, deleted_at
-		FROM contacts WHERE ico = ? AND deleted_at IS NULL`, ico,
+		FROM contacts WHERE ico = ? AND company_id = ? AND deleted_at IS NULL`, ico, companyID,
 	).Scan(
 		&c.ID, &c.Type, &c.Name, &c.ICO, &c.DIC, &c.Street, &c.City, &c.ZIP, &c.Country,
 		&c.Email, &c.Phone, &c.Web, &c.BankAccount, &c.BankCode, &c.IBAN, &c.SWIFT,
@@ -254,7 +256,7 @@ func (r *ContactRepository) FindByICO(ctx context.Context, ico string) (*domain.
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("contact with ICO %s not found: %w", ico, err)
+			return nil, fmt.Errorf("contact with ICO %s not found: %w", ico, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying contact by ICO %s: %w", ico, err)
 	}

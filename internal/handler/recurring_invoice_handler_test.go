@@ -31,10 +31,11 @@ func setupRecurringInvoiceRouter(t *testing.T) (*chi.Mux, int64) {
 	h := NewRecurringInvoiceHandler(recurringInvoiceSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/contacts", contactHandler.Routes())
 	r.Mount("/api/v1/recurring-invoices", h.Routes())
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 	return r, seqID
 }
 

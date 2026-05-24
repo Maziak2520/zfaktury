@@ -106,7 +106,7 @@ func runSeed() error {
 
 	// Check if data already exists.
 	if !seedForce {
-		contacts, _, err := contactRepo.List(ctx, domain.ContactFilter{Limit: 1})
+		contacts, _, err := contactRepo.List(ctx, 1, domain.ContactFilter{Limit: 1})
 		if err != nil {
 			return fmt.Errorf("checking existing data: %w", err)
 		}
@@ -352,7 +352,7 @@ func seedContacts(ctx context.Context, svc *service.ContactService) (contactIDs,
 
 	for _, c := range contacts {
 		contact := c.contact
-		if err := svc.Create(ctx, &contact); err != nil {
+		if err := svc.Create(ctx, 1, &contact); err != nil {
 			return nil, fmt.Errorf("creating contact %s: %w", c.alias, err)
 		}
 		ids[c.alias] = contact.ID

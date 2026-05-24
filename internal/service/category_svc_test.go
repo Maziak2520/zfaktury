@@ -28,7 +28,7 @@ func TestCategoryService_Create_Valid(t *testing.T) {
 		LabelEN: "New category",
 	}
 
-	if err := svc.Create(ctx, cat); err != nil {
+	if err := svc.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if cat.ID == 0 {
@@ -48,7 +48,7 @@ func TestCategoryService_Create_MissingKey(t *testing.T) {
 		LabelEN: "Test",
 	}
 
-	err := svc.Create(ctx, cat)
+	err := svc.Create(ctx, 1, cat)
 	if err == nil {
 		t.Error("expected error for missing key")
 	}
@@ -75,7 +75,7 @@ func TestCategoryService_Create_InvalidKeyFormat(t *testing.T) {
 				LabelCS: "Test",
 				LabelEN: "Test",
 			}
-			err := svc.Create(ctx, cat)
+			err := svc.Create(ctx, 1, cat)
 			if err == nil {
 				t.Errorf("expected error for invalid key %q", tt.key)
 			}
@@ -92,7 +92,7 @@ func TestCategoryService_Create_MissingLabelCS(t *testing.T) {
 		LabelEN: "English",
 	}
 
-	err := svc.Create(ctx, cat)
+	err := svc.Create(ctx, 1, cat)
 	if err == nil {
 		t.Error("expected error for missing Czech label")
 	}
@@ -107,7 +107,7 @@ func TestCategoryService_Create_MissingLabelEN(t *testing.T) {
 		LabelCS: "Czech",
 	}
 
-	err := svc.Create(ctx, cat)
+	err := svc.Create(ctx, 1, cat)
 	if err == nil {
 		t.Error("expected error for missing English label")
 	}
@@ -124,7 +124,7 @@ func TestCategoryService_Create_DuplicateKey(t *testing.T) {
 		LabelEN: "Duplicate",
 	}
 
-	err := svc.Create(ctx, cat)
+	err := svc.Create(ctx, 1, cat)
 	if err == nil {
 		t.Error("expected error for duplicate key")
 	}
@@ -139,13 +139,13 @@ func TestCategoryService_Update_Valid(t *testing.T) {
 		LabelCS: "Pred",
 		LabelEN: "Before",
 	}
-	if err := svc.Create(ctx, cat); err != nil {
+	if err := svc.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	cat.LabelCS = "Po"
 	cat.LabelEN = "After"
-	if err := svc.Update(ctx, cat); err != nil {
+	if err := svc.Update(ctx, 1, cat); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 }
@@ -159,7 +159,7 @@ func TestCategoryService_Update_MissingID(t *testing.T) {
 		LabelCS: "Test",
 		LabelEN: "Test",
 	}
-	err := svc.Update(ctx, cat)
+	err := svc.Update(ctx, 1, cat)
 	if err == nil {
 		t.Error("expected error for missing ID")
 	}
@@ -170,7 +170,7 @@ func TestCategoryService_Delete_Default_Protected(t *testing.T) {
 	ctx := context.Background()
 
 	// List to find a default category.
-	categories, err := svc.List(ctx)
+	categories, err := svc.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestCategoryService_Delete_Default_Protected(t *testing.T) {
 		t.Fatal("no default categories found in seed data")
 	}
 
-	err = svc.Delete(ctx, defaultCat.ID)
+	err = svc.Delete(ctx, 1, defaultCat.ID)
 	if err == nil {
 		t.Error("expected error when deleting default category")
 	}
@@ -205,15 +205,15 @@ func TestCategoryService_Delete_Custom(t *testing.T) {
 		LabelCS: "Smazat",
 		LabelEN: "Delete",
 	}
-	if err := svc.Create(ctx, cat); err != nil {
+	if err := svc.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.Delete(ctx, cat.ID); err != nil {
+	if err := svc.Delete(ctx, 1, cat.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	_, err := svc.GetByID(ctx, cat.ID)
+	_, err := svc.GetByID(ctx, 1, cat.ID)
 	if err == nil {
 		t.Error("expected error when getting deleted category")
 	}
@@ -223,7 +223,7 @@ func TestCategoryService_List(t *testing.T) {
 	svc, _ := newCategoryService(t)
 	ctx := context.Background()
 
-	categories, err := svc.List(ctx)
+	categories, err := svc.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}

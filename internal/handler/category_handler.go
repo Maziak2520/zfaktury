@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -34,9 +33,15 @@ func (h *CategoryHandler) Routes() chi.Router {
 	return r
 }
 
-// List handles GET /api/v1/expense-categories.
+// List handles GET /api/v1/companies/{companyID}/expense-categories.
 func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	categories, err := h.svc.List(r.Context())
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
+	categories, err := h.svc.List(r.Context(), company.ID)
 	if err != nil {
 		slog.Error("failed to list expense categories", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list categories")
@@ -51,8 +56,14 @@ func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, items)
 }
 
-// Create handles POST /api/v1/expense-categories.
+// Create handles POST /api/v1/companies/{companyID}/expense-categories.
 func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req categoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -60,7 +71,7 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cat := req.toDomain()
-	if err := h.svc.Create(r.Context(), cat); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, cat); err != nil {
 		slog.Error("failed to create expense category", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -69,8 +80,14 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, categoryFromDomain(cat))
 }
 
-// Update handles PUT /api/v1/expense-categories/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/expense-categories/{id}.
 func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid category ID")
@@ -85,8 +102,12 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	cat := req.toDomain()
 	cat.ID = id
-	if err := h.svc.Update(r.Context(), cat); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, cat); err != nil {
 		slog.Error("failed to update expense category", "error", err, "id", id)
+		if errors.Is(err, domain.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "category not found")
+			return
+		}
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
@@ -94,21 +115,27 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, categoryFromDomain(cat))
 }
 
-// Delete handles DELETE /api/v1/expense-categories/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/expense-categories/{id}.
 func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid category ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete expense category", "error", err, "id", id)
 		if strings.Contains(err.Error(), "default categories cannot be deleted") {
 			respondError(w, http.StatusForbidden, err.Error())
 			return
 		}
-		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, domain.ErrNotFound) {
 			respondError(w, http.StatusNotFound, "category not found")
 			return
 		}

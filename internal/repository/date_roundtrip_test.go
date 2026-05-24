@@ -213,11 +213,11 @@ func TestContactDateRoundtrip(t *testing.T) {
 		VATUnreliableAt: &vatAt,
 	}
 
-	if err := repo.Create(ctx, c); err != nil {
+	if err := repo.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, c.ID)
+	got, err := repo.GetByID(ctx, 1, c.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -245,17 +245,17 @@ func TestContactUpdateDateRoundtrip(t *testing.T) {
 		Name:    "Update Date Test",
 		Country: "CZ",
 	}
-	if err := repo.Create(ctx, c); err != nil {
+	if err := repo.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	vatAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	c.VATUnreliableAt = &vatAt
-	if err := repo.Update(ctx, c); err != nil {
+	if err := repo.Update(ctx, 1, c); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, c.ID)
+	got, err := repo.GetByID(ctx, 1, c.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -310,11 +310,11 @@ func TestCategoryDateRoundtrip(t *testing.T) {
 		LabelEN: "Date test",
 	}
 
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, cat.ID)
+	got, err := repo.GetByID(ctx, 1, cat.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}

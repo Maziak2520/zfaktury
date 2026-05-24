@@ -172,17 +172,17 @@ type vcMockContactRepo struct {
 	contacts map[int64]*domain.Contact
 }
 
-func (m *vcMockContactRepo) Create(_ context.Context, _ *domain.Contact) error { return nil }
-func (m *vcMockContactRepo) Update(_ context.Context, _ *domain.Contact) error { return nil }
-func (m *vcMockContactRepo) Delete(_ context.Context, _ int64) error           { return nil }
-func (m *vcMockContactRepo) FindByICO(_ context.Context, _ string) (*domain.Contact, error) {
+func (m *vcMockContactRepo) Create(_ context.Context, _ int64, _ *domain.Contact) error { return nil }
+func (m *vcMockContactRepo) Update(_ context.Context, _ int64, _ *domain.Contact) error { return nil }
+func (m *vcMockContactRepo) Delete(_ context.Context, _, _ int64) error                 { return nil }
+func (m *vcMockContactRepo) FindByICO(_ context.Context, _ int64, _ string) (*domain.Contact, error) {
 	return nil, domain.ErrNotFound
 }
-func (m *vcMockContactRepo) List(_ context.Context, _ domain.ContactFilter) ([]domain.Contact, int, error) {
+func (m *vcMockContactRepo) List(_ context.Context, _ int64, _ domain.ContactFilter) ([]domain.Contact, int, error) {
 	return nil, 0, nil
 }
 
-func (m *vcMockContactRepo) GetByID(_ context.Context, id int64) (*domain.Contact, error) {
+func (m *vcMockContactRepo) GetByID(_ context.Context, _, id int64) (*domain.Contact, error) {
 	c, ok := m.contacts[id]
 	if !ok {
 		return nil, domain.ErrNotFound

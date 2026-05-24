@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -32,8 +33,14 @@ func (h *ContactHandler) Routes() chi.Router {
 	return r
 }
 
-// Create handles POST /api/v1/contacts.
+// Create handles POST /api/v1/companies/{companyID}/contacts.
 func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req contactRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -41,7 +48,7 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contact := req.toDomain()
-	if err := h.svc.Create(r.Context(), contact); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, contact); err != nil {
 		slog.Error("failed to create contact", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -50,8 +57,14 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, contactFromDomain(contact))
 }
 
-// List handles GET /api/v1/contacts.
+// List handles GET /api/v1/companies/{companyID}/contacts.
 func (h *ContactHandler) List(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	limit, offset := parsePagination(r)
 
 	filter := domain.ContactFilter{
@@ -62,7 +75,7 @@ func (h *ContactHandler) List(w http.ResponseWriter, r *http.Request) {
 		Offset:   offset,
 	}
 
-	contacts, total, err := h.svc.List(r.Context(), filter)
+	contacts, total, err := h.svc.List(r.Context(), company.ID, filter)
 	if err != nil {
 		slog.Error("failed to list contacts", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list contacts")
@@ -82,15 +95,21 @@ func (h *ContactHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetByID handles GET /api/v1/contacts/{id}.
+// GetByID handles GET /api/v1/companies/{companyID}/contacts/{id}.
 func (h *ContactHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid contact ID")
 		return
 	}
 
-	contact, err := h.svc.GetByID(r.Context(), id)
+	contact, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get contact", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "contact not found")
@@ -100,8 +119,14 @@ func (h *ContactHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, contactFromDomain(contact))
 }
 
-// Update handles PUT /api/v1/contacts/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/contacts/{id}.
 func (h *ContactHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid contact ID")
@@ -117,13 +142,17 @@ func (h *ContactHandler) Update(w http.ResponseWriter, r *http.Request) {
 	contact := req.toDomain()
 	contact.ID = id
 
-	if err := h.svc.Update(r.Context(), contact); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, contact); err != nil {
 		slog.Error("failed to update contact", "error", err, "id", id)
+		if errors.Is(err, domain.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "contact not found")
+			return
+		}
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
-	updated, err := h.svc.GetByID(r.Context(), id)
+	updated, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch updated contact")
 		return
@@ -132,15 +161,21 @@ func (h *ContactHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, contactFromDomain(updated))
 }
 
-// Delete handles DELETE /api/v1/contacts/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/contacts/{id}.
 func (h *ContactHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid contact ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete contact", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "contact not found")
 		return
@@ -149,7 +184,10 @@ func (h *ContactHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// LookupARES handles GET /api/v1/contacts/ares/{ico}.
+// LookupARES handles GET /api/v1/companies/{companyID}/contacts/ares/{ico}.
+//
+// The ARES registry lookup is global; the per-company URL is preserved for
+// route-tree consistency but the company context is not consulted.
 func (h *ContactHandler) LookupARES(w http.ResponseWriter, r *http.Request) {
 	ico := chi.URLParam(r, "ico")
 	if ico == "" {

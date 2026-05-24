@@ -247,10 +247,15 @@ func wireRouter(cfg *config.Config, db *sql.DB) *chi.Mux {
 	auditSvc := service.NewAuditService(auditLogRepo)
 
 	// Multi-company: global company registry. EntityCheckers (for delete
-	// safety) are wired in Phase 3 once per-entity repos gain a companyID
-	// parameter — until then the CompanyService has no children to guard.
+	// safety) are populated incrementally as per-entity repos gain a
+	// companyID parameter in Phase 3. T20 wires contacts, categories, and
+	// sequences; remaining checkers join the list as T21/T22 land.
 	companyRepo := repository.NewCompanyRepository(db)
-	companySvc := service.NewCompanyService(companyRepo, nil, auditSvc)
+	companySvc := service.NewCompanyService(companyRepo, []service.EntityChecker{
+		service.NewContactCompanyChecker(contactRepo),
+		service.NewCategoryCompanyChecker(categoryRepo),
+		service.NewSequenceCompanyChecker(sequenceRepo),
+	}, auditSvc)
 
 	// Wire ARES client.
 	aresClient := ares.NewClient()

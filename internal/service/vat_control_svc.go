@@ -219,7 +219,7 @@ func (s *VATControlStatementService) buildInvoiceLines(ctx context.Context, csID
 		}
 
 		// Load customer contact to check DIC.
-		contact, err := s.contacts.GetByID(ctx, fullInv.CustomerID)
+		contact, err := s.contacts.GetByID(ctx, defaultCompanyID, fullInv.CustomerID)
 		if err != nil {
 			return nil, fmt.Errorf("fetching contact for invoice %d: %w", inv.ID, err)
 		}
@@ -329,7 +329,7 @@ func (s *VATControlStatementService) buildExpenseLines(ctx context.Context, csID
 		// Check vendor DIC if vendor exists.
 		var vendorDIC string
 		if exp.VendorID != nil {
-			contact, err := s.contacts.GetByID(ctx, *exp.VendorID)
+			contact, err := s.contacts.GetByID(ctx, defaultCompanyID, *exp.VendorID)
 			if err != nil {
 				return nil, fmt.Errorf("fetching vendor for expense %d: %w", exp.ID, err)
 			}

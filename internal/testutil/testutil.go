@@ -296,14 +296,14 @@ func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
 	return e
 }
 
-// SeedInvoiceSequence inserts an invoice sequence into the database.
-func SeedInvoiceSequence(t *testing.T, db *sql.DB, prefix string, year int) int64 {
+// SeedInvoiceSequence inserts an invoice sequence into the database for the
+// given company. Pass companyID=1 for the default company seeded by NewTestDB.
+func SeedInvoiceSequence(t *testing.T, db *sql.DB, companyID int64, prefix string, year int) int64 {
 	t.Helper()
 
-	// Default to company id=1; mirrors SeedInvoice.
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO invoice_sequences (company_id, prefix, next_number, year, format_pattern)
-		VALUES (1, ?, 1, ?, '{prefix}{year}{number:04d}')`, prefix, year)
+		VALUES (?, ?, 1, ?, '{prefix}{year}{number:04d}')`, companyID, prefix, year)
 	if err != nil {
 		t.Fatalf("seeding invoice sequence: %v", err)
 	}
@@ -311,6 +311,28 @@ func SeedInvoiceSequence(t *testing.T, db *sql.DB, prefix string, year int) int6
 	id, err := result.LastInsertId()
 	if err != nil {
 		t.Fatalf("getting sequence id: %v", err)
+	}
+	return id
+}
+
+// SeedCategory inserts an expense category into the database for the given
+// company. Pass companyID=1 for the default company seeded by NewTestDB.
+// Returns the assigned ID.
+func SeedCategory(t *testing.T, db *sql.DB, companyID int64, key, labelCS, labelEN string) int64 {
+	t.Helper()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	result, err := db.ExecContext(context.Background(), `
+		INSERT INTO expense_categories (company_id, key, label_cs, label_en, color, sort_order, is_default, created_at)
+		VALUES (?, ?, ?, ?, '#6B7280', 0, 0, ?)`,
+		companyID, key, labelCS, labelEN, now)
+	if err != nil {
+		t.Fatalf("seeding expense category: %v", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("getting category id: %v", err)
 	}
 	return id
 }

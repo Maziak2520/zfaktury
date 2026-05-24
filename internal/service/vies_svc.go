@@ -182,7 +182,7 @@ func (s *VIESSummaryService) Recalculate(ctx context.Context, id int64) error {
 		}
 
 		// Load customer to check if EU partner.
-		customer, err := s.contacts.GetByID(ctx, inv.CustomerID)
+		customer, err := s.contacts.GetByID(ctx, defaultCompanyID, inv.CustomerID)
 		if err != nil {
 			return fmt.Errorf("fetching customer %d: %w", inv.CustomerID, err)
 		}

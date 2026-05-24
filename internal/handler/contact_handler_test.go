@@ -9,10 +9,24 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/zajca/zfaktury/internal/domain"
 	"github.com/zajca/zfaktury/internal/repository"
 	"github.com/zajca/zfaktury/internal/service"
 	"github.com/zajca/zfaktury/internal/testutil"
 )
+
+// injectTestCompany returns a middleware that puts a fake company (id=1)
+// into the request context. The per-company handlers expect the WithCompany
+// middleware to have run; these tests bypass URL-based resolution and pin
+// the company directly so the existing /api/v1/contacts/* paths still work.
+func injectTestCompany(id int64) func(http.Handler) http.Handler {
+	c := &domain.Company{ID: id, Name: "Test Co"}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(contextWithCompany(r.Context(), c)))
+		})
+	}
+}
 
 func setupContactRouter(t *testing.T) *chi.Mux {
 	t.Helper()
@@ -22,6 +36,7 @@ func setupContactRouter(t *testing.T) *chi.Mux {
 	h := NewContactHandler(contactSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/contacts", h.Routes())
 	return r
 }
