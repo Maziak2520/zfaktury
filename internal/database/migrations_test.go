@@ -137,6 +137,32 @@ func TestMultiCompanyMigration_FreshInstallProducesEmptyCompanies(t *testing.T) 
 	}
 }
 
+func TestMultiCompanyMigration_BackfillsContactsToDefaultCompany(t *testing.T) {
+	db := openMigratedDB(t, true)
+	rows, err := db.Query(`SELECT id, company_id FROM contacts ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+	type row struct{ ID, CompanyID int64 }
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.ID, &r.CompanyID); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d contacts, want 2 from seed", len(got))
+	}
+	for _, r := range got {
+		if r.CompanyID != 1 {
+			t.Errorf("contact %d company_id = %d, want 1", r.ID, r.CompanyID)
+		}
+	}
+}
+
 // TestMultiCompanyMigrationProductionSized runs migration 025 against
 // a synthetic ~5k-invoice fixture and asserts completion under 30s.
 // Gated by the ZFAKTURY_RUN_BIG_MIGRATION_TEST environment variable

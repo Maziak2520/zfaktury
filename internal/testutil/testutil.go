@@ -68,6 +68,22 @@ func NewTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("enabling foreign_keys pragma: %v", err)
 	}
 
+	// Seed a default company (id=1) so per-table company_id FKs (added in
+	// migration 025 onwards) resolve for fixtures that don't explicitly
+	// create a company. Fresh-install code paths skip the seed in migration
+	// 025 because settings have no ICO; tests do the same here.
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := db.Exec(`
+		INSERT INTO companies (
+			id, name, legal_name, ico, dic, vat_registered,
+			created_at, updated_at
+		) VALUES (1, 'Test Company', 'Test Company', '00000000', NULL, 0, ?, ?)`,
+		now, now,
+	); err != nil {
+		_ = db.Close()
+		t.Fatalf("seeding default company: %v", err)
+	}
+
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }

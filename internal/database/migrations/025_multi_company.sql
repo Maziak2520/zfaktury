@@ -68,6 +68,10 @@ DELETE FROM settings WHERE key IN (
 	'logo_path', 'accent_color'
 );
 
+-- Partition: contacts
+ALTER TABLE contacts ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+CREATE INDEX idx_contacts_company ON contacts(company_id);
+
 -- +goose StatementEnd
 
 -- +goose Down
