@@ -326,3 +326,37 @@ func TestMultiCompanyMigration_InvoiceSequencesUniquePerCompany(t *testing.T) {
 		t.Error("expected UNIQUE violation on duplicate (1, FV, 2026)")
 	}
 }
+
+func TestMultiCompanyMigration_VATReturnCompositeFK(t *testing.T) {
+	db := openMigratedDB(t, true)
+
+	// Create a second company and a VAT return owned by it.
+	_, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+
+	res, err := db.Exec(`INSERT INTO vat_returns (company_id, year, quarter, status, created_at, updated_at)
+		VALUES (2, 2026, 1, 'draft', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert vat_return in company 2: %v", err)
+	}
+	vrID, _ := res.LastInsertId()
+
+	// Cross-company: vat_return in company 2, vat_return_invoices line claims company 1.
+	// Composite FK (company_id, vat_return_id) -> vat_returns(company_id, id) must reject.
+	_, err = db.Exec(`INSERT INTO vat_return_invoices (vat_return_id, company_id, invoice_id)
+		VALUES (?, 1, 1)`, vrID)
+	if err == nil {
+		t.Error("expected composite FK violation on vat_return_invoices; vat_return belongs to company 2 but line names company 1")
+	}
+
+	// Cross-company: vat_return in company 2, vat_return_expenses line claims company 1.
+	// Composite FK (company_id, vat_return_id) -> vat_returns(company_id, id) must reject.
+	_, err = db.Exec(`INSERT INTO vat_return_expenses (vat_return_id, company_id, expense_id)
+		VALUES (?, 1, 1)`, vrID)
+	if err == nil {
+		t.Error("expected composite FK violation on vat_return_expenses; vat_return belongs to company 2 but line names company 1")
+	}
+}

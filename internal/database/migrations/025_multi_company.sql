@@ -274,10 +274,115 @@ ALTER TABLE expense_items__new RENAME TO expense_items;
 CREATE INDEX idx_expense_items_expense_id ON expense_items(expense_id);
 CREATE INDEX idx_expense_items_company    ON expense_items(company_id);
 
+-- Partition: vat_returns (parent gains company_id + composite-FK target index).
+-- Adding the column is enough on the parent side; the UNIQUE(company_id, id)
+-- index makes the parent a valid composite-FK target for the rebuilt children
+-- (vat_return_invoices, vat_return_expenses).
+ALTER TABLE vat_returns ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+CREATE INDEX        idx_vat_returns_company    ON vat_returns(company_id);
+CREATE UNIQUE INDEX idx_vat_returns_company_id ON vat_returns(company_id, id);
+
+-- Rebuild: vat_return_invoices gains company_id and a composite FK
+-- (company_id, vat_return_id) -> vat_returns(company_id, id) so a return line
+-- can never reference a VAT return owned by a different company. ON DELETE
+-- CASCADE keeps the original deletion semantics from migration 014.
+-- Uses the CREATE __new + DROP original + RENAME pattern.
+CREATE TABLE vat_return_invoices__new (
+	vat_return_id INTEGER NOT NULL,
+	company_id    INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id),
+	invoice_id    INTEGER NOT NULL REFERENCES invoices(id),
+	PRIMARY KEY (vat_return_id, invoice_id),
+	FOREIGN KEY (company_id, vat_return_id) REFERENCES vat_returns(company_id, id) ON DELETE CASCADE
+);
+INSERT INTO vat_return_invoices__new (vat_return_id, company_id, invoice_id)
+SELECT vat_return_id, 1, invoice_id FROM vat_return_invoices;
+DROP TABLE vat_return_invoices;
+ALTER TABLE vat_return_invoices__new RENAME TO vat_return_invoices;
+CREATE INDEX idx_vat_return_invoices_company ON vat_return_invoices(company_id);
+
+-- Rebuild: vat_return_expenses gains company_id and a composite FK
+-- (company_id, vat_return_id) -> vat_returns(company_id, id). Mirrors the
+-- vat_return_invoices rebuild above. ON DELETE CASCADE preserved from 014.
+CREATE TABLE vat_return_expenses__new (
+	vat_return_id INTEGER NOT NULL,
+	company_id    INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id),
+	expense_id    INTEGER NOT NULL REFERENCES expenses(id),
+	PRIMARY KEY (vat_return_id, expense_id),
+	FOREIGN KEY (company_id, vat_return_id) REFERENCES vat_returns(company_id, id) ON DELETE CASCADE
+);
+INSERT INTO vat_return_expenses__new (vat_return_id, company_id, expense_id)
+SELECT vat_return_id, 1, expense_id FROM vat_return_expenses;
+DROP TABLE vat_return_expenses;
+ALTER TABLE vat_return_expenses__new RENAME TO vat_return_expenses;
+CREATE INDEX idx_vat_return_expenses_company ON vat_return_expenses(company_id);
+
+-- Simple partition: vat_control_statements + lines, vies_summaries + lines.
+-- Lines are scoped by their parent's company already (FK to the statement /
+-- summary id), so no composite FK is required per the spec — a flat
+-- company_id column with the DEFAULT 1 backfill is sufficient.
+ALTER TABLE vat_control_statements      ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+ALTER TABLE vat_control_statement_lines ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+ALTER TABLE vies_summaries              ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+ALTER TABLE vies_summary_lines          ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id);
+CREATE INDEX idx_vat_control_statements_company      ON vat_control_statements(company_id);
+CREATE INDEX idx_vat_control_statement_lines_company ON vat_control_statement_lines(company_id);
+CREATE INDEX idx_vies_summaries_company              ON vies_summaries(company_id);
+CREATE INDEX idx_vies_summary_lines_company          ON vies_summary_lines(company_id);
+
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+
+-- Reverse: VAT graph in reverse order of Up. First drop the simple flat
+-- partitions (no composite FK), then rebuild the children to strip their
+-- composite FK, then drop the parent's company_id column + indexes.
+
+-- Reverse: simple flat VAT partitions.
+DROP INDEX IF EXISTS idx_vies_summary_lines_company;
+ALTER TABLE vies_summary_lines DROP COLUMN company_id;
+
+DROP INDEX IF EXISTS idx_vies_summaries_company;
+ALTER TABLE vies_summaries DROP COLUMN company_id;
+
+DROP INDEX IF EXISTS idx_vat_control_statement_lines_company;
+ALTER TABLE vat_control_statement_lines DROP COLUMN company_id;
+
+DROP INDEX IF EXISTS idx_vat_control_statements_company;
+ALTER TABLE vat_control_statements DROP COLUMN company_id;
+
+-- Rebuild vat_return_expenses back to its original single-column shape.
+-- Mirror of Up: CREATE __new + DROP original + RENAME so we never rename the
+-- live table out of the way. Best-effort: only company 1's rows survive.
+DROP INDEX IF EXISTS idx_vat_return_expenses_company;
+CREATE TABLE vat_return_expenses__new (
+	vat_return_id INTEGER NOT NULL REFERENCES vat_returns(id) ON DELETE CASCADE,
+	expense_id    INTEGER NOT NULL REFERENCES expenses(id),
+	PRIMARY KEY (vat_return_id, expense_id)
+);
+INSERT INTO vat_return_expenses__new (vat_return_id, expense_id)
+SELECT vat_return_id, expense_id FROM vat_return_expenses
+WHERE company_id = 1;
+DROP TABLE vat_return_expenses;
+ALTER TABLE vat_return_expenses__new RENAME TO vat_return_expenses;
+
+-- Rebuild vat_return_invoices back to its original single-column shape.
+DROP INDEX IF EXISTS idx_vat_return_invoices_company;
+CREATE TABLE vat_return_invoices__new (
+	vat_return_id INTEGER NOT NULL REFERENCES vat_returns(id) ON DELETE CASCADE,
+	invoice_id    INTEGER NOT NULL REFERENCES invoices(id),
+	PRIMARY KEY (vat_return_id, invoice_id)
+);
+INSERT INTO vat_return_invoices__new (vat_return_id, invoice_id)
+SELECT vat_return_id, invoice_id FROM vat_return_invoices
+WHERE company_id = 1;
+DROP TABLE vat_return_invoices;
+ALTER TABLE vat_return_invoices__new RENAME TO vat_return_invoices;
+
+-- Reverse: vat_returns parent column add.
+DROP INDEX IF EXISTS idx_vat_returns_company_id;
+DROP INDEX IF EXISTS idx_vat_returns_company;
+ALTER TABLE vat_returns DROP COLUMN company_id;
 
 -- Reverse: expense graph composite FK on child, then parent column drop.
 -- The child must be rebuilt first so the composite FK referencing the parent's
