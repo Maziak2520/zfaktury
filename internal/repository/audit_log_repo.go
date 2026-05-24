@@ -93,6 +93,10 @@ func (r *AuditLogRepository) List(ctx context.Context, filter domain.AuditLogFil
 		where += " AND created_at <= ?"
 		args = append(args, filter.To.Format(time.RFC3339))
 	}
+	if filter.CompanyID != nil {
+		where += " AND company_id = ?"
+		args = append(args, *filter.CompanyID)
+	}
 
 	// Count total matching entries.
 	countQuery := "SELECT COUNT(*) FROM audit_log WHERE 1=1" + where

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -79,6 +80,15 @@ func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	if v := parseOptionalInt64(r, "entity_id"); v != nil {
 		filter.EntityID = v
+	}
+
+	if v := q.Get("company_id"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			respondError(w, http.StatusBadRequest, "invalid company_id")
+			return
+		}
+		filter.CompanyID = &id
 	}
 
 	if v := q.Get("from"); v != "" {

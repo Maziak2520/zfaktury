@@ -222,6 +222,19 @@ func TestAuditLogHandler_List_ValidDateRange(t *testing.T) {
 	}
 }
 
+func TestAuditLogHandler_List_InvalidCompanyID(t *testing.T) {
+	h, _ := setupAuditLogHandler(t)
+
+	cases := []string{"not-a-number", "0", "-1"}
+	for _, v := range cases {
+		req := httptest.NewRequest(http.MethodGet, "/audit-log?company_id="+v, nil)
+		w := serveAuditLog(h, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("company_id=%q: status = %d, want %d, body: %s", v, w.Code, http.StatusBadRequest, w.Body.String())
+		}
+	}
+}
+
 func TestAuditLogHandler_List_InvalidEntityTypeIgnored(t *testing.T) {
 	h, svc := setupAuditLogHandler(t)
 	ctx := context.Background()
