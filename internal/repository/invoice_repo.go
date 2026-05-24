@@ -123,8 +123,8 @@ func scanInvoiceItem(s scanner) (domain.InvoiceItem, error) {
 	return item, err
 }
 
-// Create inserts a new invoice with its items in a single transaction.
-func (r *InvoiceRepository) Create(ctx context.Context, inv *domain.Invoice) error {
+// Create inserts a new invoice with its items in a single transaction, scoped to the given company.
+func (r *InvoiceRepository) Create(ctx context.Context, companyID int64, inv *domain.Invoice) error {
 	now := time.Now()
 	inv.CreatedAt = now
 	inv.UpdatedAt = now
@@ -157,6 +157,7 @@ func (r *InvoiceRepository) Create(ctx context.Context, inv *domain.Invoice) err
 
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO invoices (
+			company_id,
 			sequence_id, invoice_number, type, status,
 			issue_date, due_date, delivery_date, variable_symbol, constant_symbol,
 			customer_id, currency_code, exchange_rate,
@@ -165,7 +166,8 @@ func (r *InvoiceRepository) Create(ctx context.Context, inv *domain.Invoice) err
 			notes, internal_notes, sent_at, paid_at,
 			related_invoice_id, relation_type,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		seqID, inv.InvoiceNumber, inv.Type, inv.Status,
 		inv.IssueDate.Format("2006-01-02"), inv.DueDate.Format("2006-01-02"), inv.DeliveryDate.Format("2006-01-02"), inv.VariableSymbol, inv.ConstantSymbol,
 		inv.CustomerID, inv.CurrencyCode, inv.ExchangeRate,
@@ -191,9 +193,11 @@ func (r *InvoiceRepository) Create(ctx context.Context, inv *domain.Invoice) err
 
 		itemResult, err := tx.ExecContext(ctx, `
 			INSERT INTO invoice_items (
+				company_id,
 				invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, vat_amount, total_amount, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			companyID,
 			item.InvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.VATAmount, item.TotalAmount, item.SortOrder,
 		)
@@ -213,8 +217,8 @@ func (r *InvoiceRepository) Create(ctx context.Context, inv *domain.Invoice) err
 	return nil
 }
 
-// Update modifies an existing invoice and replaces its items.
-func (r *InvoiceRepository) Update(ctx context.Context, inv *domain.Invoice) error {
+// Update modifies an existing invoice and replaces its items, within the given company.
+func (r *InvoiceRepository) Update(ctx context.Context, companyID int64, inv *domain.Invoice) error {
 	inv.UpdatedAt = time.Now()
 
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -252,7 +256,7 @@ func (r *InvoiceRepository) Update(ctx context.Context, inv *domain.Invoice) err
 			notes = ?, internal_notes = ?, sent_at = ?, paid_at = ?,
 			related_invoice_id = ?, relation_type = ?,
 			updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL`,
+		WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
 		updateSeqID, inv.InvoiceNumber, inv.Type, inv.Status,
 		inv.IssueDate.Format("2006-01-02"), inv.DueDate.Format("2006-01-02"), inv.DeliveryDate.Format("2006-01-02"), inv.VariableSymbol, inv.ConstantSymbol,
 		inv.CustomerID, inv.CurrencyCode, inv.ExchangeRate,
@@ -260,14 +264,14 @@ func (r *InvoiceRepository) Update(ctx context.Context, inv *domain.Invoice) err
 		inv.SubtotalAmount, inv.VATAmount, inv.TotalAmount, inv.PaidAmount,
 		inv.Notes, inv.InternalNotes, updateSentAt, updatePaidAt,
 		updateRelatedInvoiceID, inv.RelationType,
-		inv.UpdatedAt.Format(time.RFC3339), inv.ID,
+		inv.UpdatedAt.Format(time.RFC3339), inv.ID, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating invoice %d: %w", inv.ID, err)
 	}
 
-	// Delete existing items and re-insert.
-	_, err = tx.ExecContext(ctx, `DELETE FROM invoice_items WHERE invoice_id = ?`, inv.ID)
+	// Delete existing items and re-insert (scoped to company for safety).
+	_, err = tx.ExecContext(ctx, `DELETE FROM invoice_items WHERE invoice_id = ? AND company_id = ?`, inv.ID, companyID)
 	if err != nil {
 		return fmt.Errorf("deleting old invoice items for invoice %d: %w", inv.ID, err)
 	}
@@ -278,9 +282,11 @@ func (r *InvoiceRepository) Update(ctx context.Context, inv *domain.Invoice) err
 
 		itemResult, err := tx.ExecContext(ctx, `
 			INSERT INTO invoice_items (
+				company_id,
 				invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, vat_amount, total_amount, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			companyID,
 			item.InvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.VATAmount, item.TotalAmount, item.SortOrder,
 		)
@@ -300,13 +306,13 @@ func (r *InvoiceRepository) Update(ctx context.Context, inv *domain.Invoice) err
 	return nil
 }
 
-// Delete performs a soft delete on an invoice.
-func (r *InvoiceRepository) Delete(ctx context.Context, id int64) error {
+// Delete performs a soft delete on an invoice within the given company.
+func (r *InvoiceRepository) Delete(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	nowStr := now.Format(time.RFC3339)
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE invoices SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		nowStr, nowStr, id,
+		UPDATE invoices SET deleted_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		nowStr, nowStr, id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("soft-deleting invoice %d: %w", id, err)
@@ -317,13 +323,13 @@ func (r *InvoiceRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("checking rows affected for invoice %d: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("invoice %d not found or already deleted", id)
+		return fmt.Errorf("invoice %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// GetByID retrieves an invoice with its items and customer data.
-func (r *InvoiceRepository) GetByID(ctx context.Context, id int64) (*domain.Invoice, error) {
+// GetByID retrieves an invoice with its items and customer data, scoped to the given company.
+func (r *InvoiceRepository) GetByID(ctx context.Context, companyID, id int64) (*domain.Invoice, error) {
 	var custID sql.NullInt64
 	var custType, custName, custICO, custDIC sql.NullString
 	var custStreet, custCity, custZIP, custCountry sql.NullString
@@ -344,7 +350,7 @@ func (r *InvoiceRepository) GetByID(ctx context.Context, id int64) (*domain.Invo
 			c.email, c.phone, c.web
 		FROM invoices i
 		LEFT JOIN contacts c ON c.id = i.customer_id
-		WHERE i.id = ? AND i.deleted_at IS NULL`, id,
+		WHERE i.id = ? AND i.company_id = ? AND i.deleted_at IS NULL`, id, companyID,
 	)
 
 	inv, err := scanInvoiceRow(row,
@@ -354,7 +360,7 @@ func (r *InvoiceRepository) GetByID(ctx context.Context, id int64) (*domain.Invo
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("invoice %d not found: %w", id, err)
+			return nil, fmt.Errorf("invoice %d not found: %w", id, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying invoice %d: %w", id, err)
 	}
@@ -376,13 +382,13 @@ func (r *InvoiceRepository) GetByID(ctx context.Context, id int64) (*domain.Invo
 		}
 	}
 
-	// Fetch items.
+	// Fetch items (also scoped to company for defense-in-depth).
 	itemRows, err := r.db.QueryContext(ctx, `
 		SELECT id, invoice_id, description, quantity, unit, unit_price,
 			vat_rate_percent, vat_amount, total_amount, sort_order
 		FROM invoice_items
-		WHERE invoice_id = ?
-		ORDER BY sort_order ASC`, id,
+		WHERE invoice_id = ? AND company_id = ?
+		ORDER BY sort_order ASC`, id, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("querying items for invoice %d: %w", id, err)
@@ -403,11 +409,11 @@ func (r *InvoiceRepository) GetByID(ctx context.Context, id int64) (*domain.Invo
 	return inv, nil
 }
 
-// List retrieves invoices matching the given filter with pagination.
+// List retrieves invoices matching the given filter with pagination, scoped to the given company.
 // Returns the matching invoices (without items), total count, and any error.
-func (r *InvoiceRepository) List(ctx context.Context, filter domain.InvoiceFilter) ([]domain.Invoice, int, error) {
-	where := "i.deleted_at IS NULL"
-	args := []any{}
+func (r *InvoiceRepository) List(ctx context.Context, companyID int64, filter domain.InvoiceFilter) ([]domain.Invoice, int, error) {
+	where := "i.company_id = ? AND i.deleted_at IS NULL"
+	args := []any{companyID}
 
 	if filter.Status != "" {
 		where += " AND i.status = ?"
@@ -485,12 +491,12 @@ func (r *InvoiceRepository) List(ctx context.Context, filter domain.InvoiceFilte
 	return invoices, total, nil
 }
 
-// UpdateStatus changes the status of an invoice.
-func (r *InvoiceRepository) UpdateStatus(ctx context.Context, id int64, status string) error {
+// UpdateStatus changes the status of an invoice within the given company.
+func (r *InvoiceRepository) UpdateStatus(ctx context.Context, companyID, id int64, status string) error {
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE invoices SET status = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		status, now.Format(time.RFC3339), id,
+		UPDATE invoices SET status = ?, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		status, now.Format(time.RFC3339), id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating status of invoice %d to %s: %w", id, status, err)
@@ -501,13 +507,14 @@ func (r *InvoiceRepository) UpdateStatus(ctx context.Context, id int64, status s
 		return fmt.Errorf("checking rows affected for invoice %d status update: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("invoice %d not found or already deleted", id)
+		return fmt.Errorf("invoice %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// GetRelatedInvoices returns all non-deleted invoices that reference the given invoiceID as their related invoice.
-func (r *InvoiceRepository) GetRelatedInvoices(ctx context.Context, invoiceID int64) ([]domain.Invoice, error) {
+// GetRelatedInvoices returns all non-deleted invoices that reference the given invoiceID
+// as their related invoice, scoped to the given company.
+func (r *InvoiceRepository) GetRelatedInvoices(ctx context.Context, companyID, invoiceID int64) ([]domain.Invoice, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
 			i.id, i.sequence_id, i.invoice_number, i.type, i.status,
@@ -519,8 +526,8 @@ func (r *InvoiceRepository) GetRelatedInvoices(ctx context.Context, invoiceID in
 			i.related_invoice_id, i.relation_type,
 			i.created_at, i.updated_at, i.deleted_at
 		FROM invoices i
-		WHERE i.related_invoice_id = ? AND i.deleted_at IS NULL
-		ORDER BY i.created_at ASC`, invoiceID,
+		WHERE i.related_invoice_id = ? AND i.company_id = ? AND i.deleted_at IS NULL
+		ORDER BY i.created_at ASC`, invoiceID, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("querying related invoices for invoice %d: %w", invoiceID, err)
@@ -541,8 +548,9 @@ func (r *InvoiceRepository) GetRelatedInvoices(ctx context.Context, invoiceID in
 	return invoices, nil
 }
 
-// GetNextNumber atomically increments the sequence counter and returns the formatted invoice number.
-func (r *InvoiceRepository) GetNextNumber(ctx context.Context, sequenceID int64) (string, error) {
+// GetNextNumber atomically increments the sequence counter and returns the formatted invoice number,
+// scoped to the given company.
+func (r *InvoiceRepository) GetNextNumber(ctx context.Context, companyID, sequenceID int64) (string, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", fmt.Errorf("beginning transaction for next number: %w", err)
@@ -552,11 +560,11 @@ func (r *InvoiceRepository) GetNextNumber(ctx context.Context, sequenceID int64)
 	var seq domain.InvoiceSequence
 	err = tx.QueryRowContext(ctx, `
 		SELECT id, prefix, next_number, year, format_pattern
-		FROM invoice_sequences WHERE id = ?`, sequenceID,
+		FROM invoice_sequences WHERE id = ? AND company_id = ?`, sequenceID, companyID,
 	).Scan(&seq.ID, &seq.Prefix, &seq.NextNumber, &seq.Year, &seq.FormatPattern)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", fmt.Errorf("invoice sequence %d not found: %w", sequenceID, err)
+			return "", fmt.Errorf("invoice sequence %d not found: %w", sequenceID, domain.ErrNotFound)
 		}
 		return "", fmt.Errorf("querying invoice sequence %d: %w", sequenceID, err)
 	}
@@ -566,7 +574,7 @@ func (r *InvoiceRepository) GetNextNumber(ctx context.Context, sequenceID int64)
 	number := fmt.Sprintf("%s%d%04d", seq.Prefix, seq.Year, seq.NextNumber)
 
 	_, err = tx.ExecContext(ctx, `
-		UPDATE invoice_sequences SET next_number = next_number + 1 WHERE id = ?`, sequenceID)
+		UPDATE invoice_sequences SET next_number = next_number + 1 WHERE id = ? AND company_id = ?`, sequenceID, companyID)
 	if err != nil {
 		return "", fmt.Errorf("incrementing sequence %d: %w", sequenceID, err)
 	}
@@ -577,9 +585,9 @@ func (r *InvoiceRepository) GetNextNumber(ctx context.Context, sequenceID int64)
 	return number, nil
 }
 
-// FindByRelatedInvoice finds a non-deleted invoice by its related_invoice_id and relation_type.
-// Returns nil, nil if no matching invoice is found.
-func (r *InvoiceRepository) FindByRelatedInvoice(ctx context.Context, relatedID int64, relationType string) (*domain.Invoice, error) {
+// FindByRelatedInvoice finds a non-deleted invoice by its related_invoice_id and relation_type,
+// scoped to the given company. Returns nil, nil if no matching invoice is found.
+func (r *InvoiceRepository) FindByRelatedInvoice(ctx context.Context, companyID, relatedID int64, relationType string) (*domain.Invoice, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT
 			i.id, i.sequence_id, i.invoice_number, i.type, i.status,
@@ -591,8 +599,8 @@ func (r *InvoiceRepository) FindByRelatedInvoice(ctx context.Context, relatedID 
 			i.related_invoice_id, i.relation_type,
 			i.created_at, i.updated_at, i.deleted_at
 		FROM invoices i
-		WHERE i.related_invoice_id = ? AND i.relation_type = ? AND i.deleted_at IS NULL
-		LIMIT 1`, relatedID, relationType,
+		WHERE i.related_invoice_id = ? AND i.relation_type = ? AND i.company_id = ? AND i.deleted_at IS NULL
+		LIMIT 1`, relatedID, relationType, companyID,
 	)
 
 	inv, err := scanInvoiceRow(row)

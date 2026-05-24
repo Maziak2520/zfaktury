@@ -9,14 +9,6 @@ import (
 	"github.com/zajca/zfaktury/internal/repository"
 )
 
-// defaultCompanyID is the implicit company used by services that have not
-// yet been threaded with companyID in Phase 3 (T21+). It matches the
-// migration-025 backfill default (id=1) and the testutil seed.
-//
-// Remove every reference to this constant as each vertical (invoices,
-// expenses, etc.) gains an explicit companyID parameter.
-const defaultCompanyID int64 = 1
-
 // InvoiceService provides business logic for invoice management.
 type InvoiceService struct {
 	repo      repository.InvoiceRepo
@@ -35,8 +27,9 @@ func NewInvoiceService(repo repository.InvoiceRepo, contacts *ContactService, se
 	}
 }
 
-// Create validates, calculates totals, assigns a number, and persists a new invoice.
-func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) error {
+// Create validates, calculates totals, assigns a number, and persists a new invoice
+// under the given company.
+func (s *InvoiceService) Create(ctx context.Context, companyID int64, invoice *domain.Invoice) error {
 	if invoice.CustomerID == 0 {
 		return fmt.Errorf("customer is required: %w", domain.ErrInvalidInput)
 	}
@@ -47,11 +40,8 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 		return fmt.Errorf("due date is required: %w", domain.ErrInvalidInput)
 	}
 
-	// Verify customer exists. The InvoiceService itself is not yet
-	// company-scoped (T21 will thread companyID through invoices); for now
-	// every invoice is treated as belonging to the default company (id=1),
-	// matching the migration-025 backfill and the testutil seed defaults.
-	_, err := s.contacts.GetByID(ctx, defaultCompanyID, invoice.CustomerID)
+	// Verify customer exists within the company.
+	_, err := s.contacts.GetByID(ctx, companyID, invoice.CustomerID)
 	if err != nil {
 		return fmt.Errorf("fetching customer: %w", err)
 	}
@@ -83,7 +73,7 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 			prefix = "DN"
 		}
 		year := invoice.IssueDate.Year()
-		seq, err := s.sequences.GetOrCreateForYear(ctx, defaultCompanyID, prefix, year)
+		seq, err := s.sequences.GetOrCreateForYear(ctx, companyID, prefix, year)
 		if err != nil {
 			return fmt.Errorf("assigning sequence: %w", err)
 		}
@@ -92,7 +82,7 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 
 	// Assign invoice number from sequence.
 	if invoice.InvoiceNumber == "" && invoice.SequenceID > 0 {
-		number, err := s.repo.GetNextNumber(ctx, invoice.SequenceID)
+		number, err := s.repo.GetNextNumber(ctx, companyID, invoice.SequenceID)
 		if err != nil {
 			return fmt.Errorf("getting next invoice number: %w", err)
 		}
@@ -107,7 +97,7 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 	// Calculate totals from line items.
 	invoice.CalculateTotals()
 
-	if err := s.repo.Create(ctx, invoice); err != nil {
+	if err := s.repo.Create(ctx, companyID, invoice); err != nil {
 		return fmt.Errorf("creating invoice: %w", err)
 	}
 	if s.audit != nil {
@@ -116,8 +106,8 @@ func (s *InvoiceService) Create(ctx context.Context, invoice *domain.Invoice) er
 	return nil
 }
 
-// Update validates, recalculates totals, and updates an existing invoice.
-func (s *InvoiceService) Update(ctx context.Context, invoice *domain.Invoice) error {
+// Update validates, recalculates totals, and updates an existing invoice within the given company.
+func (s *InvoiceService) Update(ctx context.Context, companyID int64, invoice *domain.Invoice) error {
 	if invoice.ID == 0 {
 		return fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
@@ -132,7 +122,7 @@ func (s *InvoiceService) Update(ctx context.Context, invoice *domain.Invoice) er
 	}
 
 	// Verify the invoice exists and is editable.
-	existing, err := s.repo.GetByID(ctx, invoice.ID)
+	existing, err := s.repo.GetByID(ctx, companyID, invoice.ID)
 	if err != nil {
 		return fmt.Errorf("fetching invoice for update: %w", err)
 	}
@@ -162,7 +152,7 @@ func (s *InvoiceService) Update(ctx context.Context, invoice *domain.Invoice) er
 	// Recalculate totals.
 	invoice.CalculateTotals()
 
-	if err := s.repo.Update(ctx, invoice); err != nil {
+	if err := s.repo.Update(ctx, companyID, invoice); err != nil {
 		return fmt.Errorf("updating invoice: %w", err)
 	}
 	if s.audit != nil {
@@ -171,13 +161,13 @@ func (s *InvoiceService) Update(ctx context.Context, invoice *domain.Invoice) er
 	return nil
 }
 
-// Delete removes an invoice by ID (soft delete).
-func (s *InvoiceService) Delete(ctx context.Context, id int64) error {
+// Delete removes an invoice by ID (soft delete) within the given company.
+func (s *InvoiceService) Delete(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	existing, err := s.repo.GetByID(ctx, id)
+	existing, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return fmt.Errorf("fetching invoice for delete: %w", err)
 	}
@@ -185,7 +175,7 @@ func (s *InvoiceService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("cannot delete a paid invoice: %w", domain.ErrPaidInvoice)
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, companyID, id); err != nil {
 		return fmt.Errorf("deleting invoice: %w", err)
 	}
 	if s.audit != nil {
@@ -194,30 +184,30 @@ func (s *InvoiceService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetByID retrieves an invoice by its ID.
-func (s *InvoiceService) GetByID(ctx context.Context, id int64) (*domain.Invoice, error) {
+// GetByID retrieves an invoice by its ID within the given company.
+func (s *InvoiceService) GetByID(ctx context.Context, companyID, id int64) (*domain.Invoice, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
-	inv, err := s.repo.GetByID(ctx, id)
+	inv, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching invoice: %w", err)
 	}
 	return inv, nil
 }
 
-// GetRelatedInvoices returns all invoices that reference the given invoice ID.
-func (s *InvoiceService) GetRelatedInvoices(ctx context.Context, invoiceID int64) ([]domain.Invoice, error) {
-	invoices, err := s.repo.GetRelatedInvoices(ctx, invoiceID)
+// GetRelatedInvoices returns all invoices that reference the given invoice ID within the given company.
+func (s *InvoiceService) GetRelatedInvoices(ctx context.Context, companyID, invoiceID int64) ([]domain.Invoice, error) {
+	invoices, err := s.repo.GetRelatedInvoices(ctx, companyID, invoiceID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching related invoices: %w", err)
 	}
 	return invoices, nil
 }
 
-// List retrieves invoices matching the given filter.
+// List retrieves invoices matching the given filter within the given company.
 // Returns the invoices, total count, and any error.
-func (s *InvoiceService) List(ctx context.Context, filter domain.InvoiceFilter) ([]domain.Invoice, int, error) {
+func (s *InvoiceService) List(ctx context.Context, companyID int64, filter domain.InvoiceFilter) ([]domain.Invoice, int, error) {
 	if filter.Limit <= 0 {
 		filter.Limit = 20
 	}
@@ -227,20 +217,21 @@ func (s *InvoiceService) List(ctx context.Context, filter domain.InvoiceFilter) 
 	if filter.Offset < 0 {
 		filter.Offset = 0
 	}
-	invoices, count, err := s.repo.List(ctx, filter)
+	invoices, count, err := s.repo.List(ctx, companyID, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing invoices: %w", err)
 	}
 	return invoices, count, nil
 }
 
-// MarkAsSent updates the invoice status to sent and records the timestamp.
-func (s *InvoiceService) MarkAsSent(ctx context.Context, id int64) error {
+// MarkAsSent updates the invoice status to sent and records the timestamp,
+// within the given company.
+func (s *InvoiceService) MarkAsSent(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	invoice, err := s.repo.GetByID(ctx, id)
+	invoice, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return fmt.Errorf("fetching invoice for mark as sent: %w", err)
 	}
@@ -252,19 +243,20 @@ func (s *InvoiceService) MarkAsSent(ctx context.Context, id int64) error {
 	invoice.Status = domain.InvoiceStatusSent
 	invoice.SentAt = &now
 
-	if err := s.repo.Update(ctx, invoice); err != nil {
+	if err := s.repo.Update(ctx, companyID, invoice); err != nil {
 		return fmt.Errorf("marking invoice as sent: %w", err)
 	}
 	return nil
 }
 
-// MarkAsPaid updates the invoice status to paid and records the payment details.
-func (s *InvoiceService) MarkAsPaid(ctx context.Context, id int64, amount domain.Amount, paidAt time.Time) error {
+// MarkAsPaid updates the invoice status to paid and records the payment details,
+// within the given company.
+func (s *InvoiceService) MarkAsPaid(ctx context.Context, companyID, id int64, amount domain.Amount, paidAt time.Time) error {
 	if id == 0 {
 		return fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	invoice, err := s.repo.GetByID(ctx, id)
+	invoice, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return fmt.Errorf("fetching invoice for mark as paid: %w", err)
 	}
@@ -279,20 +271,21 @@ func (s *InvoiceService) MarkAsPaid(ctx context.Context, id int64, amount domain
 	invoice.PaidAt = &paidAt
 	invoice.Status = domain.InvoiceStatusPaid
 
-	if err := s.repo.Update(ctx, invoice); err != nil {
+	if err := s.repo.Update(ctx, companyID, invoice); err != nil {
 		return fmt.Errorf("marking invoice as paid: %w", err)
 	}
 	return nil
 }
 
-// SettleProforma creates a settlement regular invoice from a paid proforma invoice.
-// The proforma must have status=paid. The new invoice is a draft linked to the proforma.
-func (s *InvoiceService) SettleProforma(ctx context.Context, proformaID int64) (*domain.Invoice, error) {
+// SettleProforma creates a settlement regular invoice from a paid proforma invoice,
+// within the given company. The proforma must have status=paid. The new invoice is
+// a draft linked to the proforma.
+func (s *InvoiceService) SettleProforma(ctx context.Context, companyID, proformaID int64) (*domain.Invoice, error) {
 	if proformaID == 0 {
 		return nil, fmt.Errorf("proforma ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	proforma, err := s.repo.GetByID(ctx, proformaID)
+	proforma, err := s.repo.GetByID(ctx, companyID, proformaID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching proforma: %w", err)
 	}
@@ -304,7 +297,7 @@ func (s *InvoiceService) SettleProforma(ctx context.Context, proformaID int64) (
 	}
 
 	// Idempotency: return existing settlement if already created.
-	existing, err := s.repo.FindByRelatedInvoice(ctx, proformaID, domain.RelationTypeSettlement)
+	existing, err := s.repo.FindByRelatedInvoice(ctx, companyID, proformaID, domain.RelationTypeSettlement)
 	if err != nil {
 		return nil, fmt.Errorf("checking existing settlement: %w", err)
 	}
@@ -346,29 +339,29 @@ func (s *InvoiceService) SettleProforma(ctx context.Context, proformaID int64) (
 	}
 
 	// Create assigns invoice number from "FV" sequence and calculates totals.
-	if err := s.Create(ctx, settlement); err != nil {
+	if err := s.Create(ctx, companyID, settlement); err != nil {
 		return nil, fmt.Errorf("settling proforma: %w", err)
 	}
 
 	// Bidirectional link: update proforma to point back to settlement.
 	proforma.RelatedInvoiceID = &settlement.ID
 	proforma.RelationType = domain.RelationTypeSettlement
-	if err := s.repo.Update(ctx, proforma); err != nil {
+	if err := s.repo.Update(ctx, companyID, proforma); err != nil {
 		return nil, fmt.Errorf("linking proforma to settlement: %w", err)
 	}
 
 	return settlement, nil
 }
 
-// CreateCreditNote creates a credit note for an existing regular invoice.
+// CreateCreditNote creates a credit note for an existing regular invoice within the given company.
 // If items is nil/empty, a full credit note is created (all items negated).
 // If items are provided, a partial credit note is created with those items.
-func (s *InvoiceService) CreateCreditNote(ctx context.Context, originalID int64, items []domain.InvoiceItem, reason string) (*domain.Invoice, error) {
+func (s *InvoiceService) CreateCreditNote(ctx context.Context, companyID, originalID int64, items []domain.InvoiceItem, reason string) (*domain.Invoice, error) {
 	if originalID == 0 {
 		return nil, fmt.Errorf("original invoice ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	original, err := s.repo.GetByID(ctx, originalID)
+	original, err := s.repo.GetByID(ctx, companyID, originalID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching original invoice for credit note: %w", err)
 	}
@@ -427,20 +420,20 @@ func (s *InvoiceService) CreateCreditNote(ctx context.Context, originalID int64,
 		}
 	}
 
-	if err := s.Create(ctx, creditNote); err != nil {
+	if err := s.Create(ctx, companyID, creditNote); err != nil {
 		return nil, fmt.Errorf("creating credit note: %w", err)
 	}
 
 	return creditNote, nil
 }
 
-// Duplicate creates a copy of an existing invoice as a new draft.
-func (s *InvoiceService) Duplicate(ctx context.Context, id int64) (*domain.Invoice, error) {
+// Duplicate creates a copy of an existing invoice as a new draft within the given company.
+func (s *InvoiceService) Duplicate(ctx context.Context, companyID, id int64) (*domain.Invoice, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	original, err := s.repo.GetByID(ctx, id)
+	original, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching invoice for duplicate: %w", err)
 	}
@@ -478,7 +471,7 @@ func (s *InvoiceService) Duplicate(ctx context.Context, id int64) (*domain.Invoi
 	}
 
 	// Assign number and calculate totals via Create.
-	if err := s.Create(ctx, dup); err != nil {
+	if err := s.Create(ctx, companyID, dup); err != nil {
 		return nil, fmt.Errorf("duplicating invoice: %w", err)
 	}
 

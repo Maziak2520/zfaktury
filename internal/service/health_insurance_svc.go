@@ -11,6 +11,11 @@ import (
 	"github.com/zajca/zfaktury/internal/repository"
 )
 
+// healthInsuranceFallbackCompanyID is a transitional shim — health insurance
+// service is not yet company-scoped (T22 will thread companyID through it).
+// Remove when this service gains an explicit companyID.
+const healthInsuranceFallbackCompanyID int64 = 1 // remove in T22
+
 // HealthInsuranceService provides business logic for health insurance overview management.
 type HealthInsuranceService struct {
 	repo                repository.HealthInsuranceOverviewRepo
@@ -142,7 +147,7 @@ func (s *HealthInsuranceService) Recalculate(ctx context.Context, id int64) (*do
 		return nil, domain.ErrFilingAlreadyFiled
 	}
 
-	base, err := CalculateAnnualBase(ctx, s.invoiceRepo, s.expenseRepo, hi.Year)
+	base, err := CalculateAnnualBase(ctx, s.invoiceRepo, s.expenseRepo, healthInsuranceFallbackCompanyID, hi.Year)
 	if err != nil {
 		return nil, fmt.Errorf("calculating annual base for health_insurance_overview: %w", err)
 	}

@@ -41,9 +41,9 @@ func NewDocumentService(repo repository.DocumentRepo, dataDir string, audit *Aud
 	return &DocumentService{repo: repo, dataDir: dataDir, audit: audit}
 }
 
-// Upload validates, stores, and registers a new document for an expense.
+// Upload validates, stores, and registers a new document for an expense within the given company.
 // data is read fully to enforce the size limit before writing to disk.
-func (s *DocumentService) Upload(ctx context.Context, expenseID int64, filename string, contentType string, data io.Reader) (*domain.ExpenseDocument, error) {
+func (s *DocumentService) Upload(ctx context.Context, companyID, expenseID int64, filename string, contentType string, data io.Reader) (*domain.ExpenseDocument, error) {
 	if expenseID == 0 {
 		return nil, fmt.Errorf("expense ID is required: %w", domain.ErrInvalidInput)
 	}
@@ -60,7 +60,7 @@ func (s *DocumentService) Upload(ctx context.Context, expenseID int64, filename 
 	}
 
 	// Check per-expense document limit.
-	count, err := s.repo.CountByExpenseID(ctx, expenseID)
+	count, err := s.repo.CountByExpenseID(ctx, companyID, expenseID)
 	if err != nil {
 		return nil, fmt.Errorf("checking document count: %w", err)
 	}
@@ -116,7 +116,7 @@ func (s *DocumentService) Upload(ctx context.Context, expenseID int64, filename 
 		Size:        int64(len(fileBytes)),
 	}
 
-	if err := s.repo.Create(ctx, doc); err != nil {
+	if err := s.repo.Create(ctx, companyID, doc); err != nil {
 		// Clean up file on DB failure.
 		_ = os.Remove(storagePath)
 		return nil, fmt.Errorf("saving document record: %w", err)
@@ -135,42 +135,42 @@ func (s *DocumentService) Upload(ctx context.Context, expenseID int64, filename 
 	return doc, nil
 }
 
-// GetByID retrieves a document's metadata by its ID.
-func (s *DocumentService) GetByID(ctx context.Context, id int64) (*domain.ExpenseDocument, error) {
+// GetByID retrieves a document's metadata by its ID within the given company.
+func (s *DocumentService) GetByID(ctx context.Context, companyID, id int64) (*domain.ExpenseDocument, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("document ID is required: %w", domain.ErrInvalidInput)
 	}
-	doc, err := s.repo.GetByID(ctx, id)
+	doc, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching document: %w", err)
 	}
 	return doc, nil
 }
 
-// ListByExpenseID retrieves all active documents for an expense.
-func (s *DocumentService) ListByExpenseID(ctx context.Context, expenseID int64) ([]domain.ExpenseDocument, error) {
+// ListByExpenseID retrieves all active documents for an expense within the given company.
+func (s *DocumentService) ListByExpenseID(ctx context.Context, companyID, expenseID int64) ([]domain.ExpenseDocument, error) {
 	if expenseID == 0 {
 		return nil, fmt.Errorf("expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	docs, err := s.repo.ListByExpenseID(ctx, expenseID)
+	docs, err := s.repo.ListByExpenseID(ctx, companyID, expenseID)
 	if err != nil {
 		return nil, fmt.Errorf("listing documents for expense: %w", err)
 	}
 	return docs, nil
 }
 
-// Delete soft-deletes the document record and removes the file from disk.
-func (s *DocumentService) Delete(ctx context.Context, id int64) error {
+// Delete soft-deletes the document record and removes the file from disk within the given company.
+func (s *DocumentService) Delete(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("document ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	doc, err := s.repo.GetByID(ctx, id)
+	doc, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return fmt.Errorf("getting document before delete: %w", err)
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, companyID, id); err != nil {
 		return fmt.Errorf("soft-deleting document record: %w", err)
 	}
 
@@ -186,13 +186,14 @@ func (s *DocumentService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetFilePath returns the filesystem path and content type for serving a document.
-// It validates that the stored path is within the expected data directory.
-func (s *DocumentService) GetFilePath(ctx context.Context, id int64) (string, string, error) {
+// GetFilePath returns the filesystem path and content type for serving a document
+// within the given company. It validates that the stored path is within the
+// expected data directory.
+func (s *DocumentService) GetFilePath(ctx context.Context, companyID, id int64) (string, string, error) {
 	if id == 0 {
 		return "", "", fmt.Errorf("document ID is required: %w", domain.ErrInvalidInput)
 	}
-	doc, err := s.repo.GetByID(ctx, id)
+	doc, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return "", "", fmt.Errorf("fetching document for file path: %w", err)
 	}

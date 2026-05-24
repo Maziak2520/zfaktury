@@ -54,7 +54,7 @@ func TestReportService_RevenueReport_WithData(t *testing.T) {
 			VATRatePercent: 0,
 		},
 	}
-	inv1 := testutil.SeedInvoice(t, db, contact.ID, items1)
+	inv1 := testutil.SeedInvoice(t, db, 1, contact.ID, items1)
 
 	items2 := []domain.InvoiceItem{
 		{
@@ -65,7 +65,7 @@ func TestReportService_RevenueReport_WithData(t *testing.T) {
 			VATRatePercent: 0,
 		},
 	}
-	inv2 := testutil.SeedInvoice(t, db, contact.ID, items2)
+	inv2 := testutil.SeedInvoice(t, db, 1, contact.ID, items2)
 
 	report, err := svc.RevenueReport(ctx, year)
 	if err != nil {

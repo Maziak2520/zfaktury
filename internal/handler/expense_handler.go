@@ -38,8 +38,14 @@ type bulkIDsRequest struct {
 	IDs []int64 `json:"ids"`
 }
 
-// Create handles POST /api/v1/expenses.
+// Create handles POST /api/v1/companies/{companyID}/expenses.
 func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req expenseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -52,7 +58,7 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.Create(r.Context(), expense); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, expense); err != nil {
 		slog.Error("failed to create expense", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -61,8 +67,14 @@ func (h *ExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, expenseFromDomain(expense))
 }
 
-// List handles GET /api/v1/expenses.
+// List handles GET /api/v1/companies/{companyID}/expenses.
 func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	limit, offset := parsePagination(r)
 
 	filter := domain.ExpenseFilter{
@@ -76,7 +88,7 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 		Offset:      offset,
 	}
 
-	expenses, total, err := h.svc.List(r.Context(), filter)
+	expenses, total, err := h.svc.List(r.Context(), company.ID, filter)
 	if err != nil {
 		slog.Error("failed to list expenses", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list expenses")
@@ -96,15 +108,21 @@ func (h *ExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetByID handles GET /api/v1/expenses/{id}.
+// GetByID handles GET /api/v1/companies/{companyID}/expenses/{id}.
 func (h *ExpenseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid expense ID")
 		return
 	}
 
-	expense, err := h.svc.GetByID(r.Context(), id)
+	expense, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get expense", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "expense not found")
@@ -114,8 +132,14 @@ func (h *ExpenseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, expenseFromDomain(expense))
 }
 
-// Update handles PUT /api/v1/expenses/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/expenses/{id}.
 func (h *ExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid expense ID")
@@ -135,7 +159,7 @@ func (h *ExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	expense.ID = id
 
-	if err := h.svc.Update(r.Context(), expense); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, expense); err != nil {
 		slog.Error("failed to update expense", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -144,15 +168,21 @@ func (h *ExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, expenseFromDomain(expense))
 }
 
-// Delete handles DELETE /api/v1/expenses/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/expenses/{id}.
 func (h *ExpenseHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid expense ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete expense", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "expense not found")
 		return
@@ -161,14 +191,20 @@ func (h *ExpenseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// MarkTaxReviewed handles POST /api/v1/expenses/review.
+// MarkTaxReviewed handles POST /api/v1/companies/{companyID}/expenses/review.
 func (h *ExpenseHandler) MarkTaxReviewed(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req bulkIDsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.svc.MarkTaxReviewed(r.Context(), req.IDs); err != nil {
+	if err := h.svc.MarkTaxReviewed(r.Context(), company.ID, req.IDs); err != nil {
 		slog.Error("failed to mark expenses as tax reviewed", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -176,14 +212,20 @@ func (h *ExpenseHandler) MarkTaxReviewed(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UnmarkTaxReviewed handles POST /api/v1/expenses/unreview.
+// UnmarkTaxReviewed handles POST /api/v1/companies/{companyID}/expenses/unreview.
 func (h *ExpenseHandler) UnmarkTaxReviewed(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req bulkIDsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.svc.UnmarkTaxReviewed(r.Context(), req.IDs); err != nil {
+	if err := h.svc.UnmarkTaxReviewed(r.Context(), company.ID, req.IDs); err != nil {
 		slog.Error("failed to unmark expenses as tax reviewed", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return

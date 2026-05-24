@@ -13,6 +13,11 @@ import (
 	"github.com/zajca/zfaktury/internal/repository"
 )
 
+// socialInsuranceFallbackCompanyID is a transitional shim — social insurance
+// service is not yet company-scoped (T22 will thread companyID through it).
+// Remove when this service gains an explicit companyID.
+const socialInsuranceFallbackCompanyID int64 = 1 // remove in T22
+
 // SocialInsuranceService provides business logic for social insurance overview management.
 type SocialInsuranceService struct {
 	repo                repository.SocialInsuranceOverviewRepo
@@ -147,7 +152,7 @@ func (s *SocialInsuranceService) Recalculate(ctx context.Context, id int64) (*do
 	}
 
 	// Calculate annual base from invoices and expenses.
-	annualBase, err := CalculateAnnualBase(ctx, s.invoiceRepo, s.expenseRepo, sio.Year)
+	annualBase, err := CalculateAnnualBase(ctx, s.invoiceRepo, s.expenseRepo, socialInsuranceFallbackCompanyID, sio.Year)
 	if err != nil {
 		return nil, fmt.Errorf("calculating annual base for social insurance: %w", err)
 	}

@@ -15,7 +15,7 @@ func TestReminderRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Reminder Customer", Email: "test@example.com"})
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Service", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 
@@ -28,7 +28,7 @@ func TestReminderRepository_Create(t *testing.T) {
 		BodyPreview:    "Preview text",
 	}
 
-	if err := repo.Create(ctx, rem); err != nil {
+	if err := repo.Create(ctx, 1, rem); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestReminderRepository_ListByInvoiceID(t *testing.T) {
 	ctx := context.Background()
 
 	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "List Customer", Email: "list@example.com"})
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Service", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 
@@ -61,12 +61,12 @@ func TestReminderRepository_ListByInvoiceID(t *testing.T) {
 			Subject:        "Subject",
 			BodyPreview:    "Preview",
 		}
-		if err := repo.Create(ctx, rem); err != nil {
+		if err := repo.Create(ctx, 1, rem); err != nil {
 			t.Fatalf("Create() reminder %d error: %v", i, err)
 		}
 	}
 
-	reminders, err := repo.ListByInvoiceID(ctx, inv.ID)
+	reminders, err := repo.ListByInvoiceID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("ListByInvoiceID() error: %v", err)
 	}
@@ -89,12 +89,12 @@ func TestReminderRepository_CountByInvoiceID(t *testing.T) {
 	ctx := context.Background()
 
 	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Count Customer", Email: "count@example.com"})
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Service", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 
 	// Initially zero.
-	count, err := repo.CountByInvoiceID(ctx, inv.ID)
+	count, err := repo.CountByInvoiceID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("CountByInvoiceID() error: %v", err)
 	}
@@ -111,11 +111,11 @@ func TestReminderRepository_CountByInvoiceID(t *testing.T) {
 		Subject:        "Subject",
 		BodyPreview:    "Preview",
 	}
-	if err := repo.Create(ctx, rem); err != nil {
+	if err := repo.Create(ctx, 1, rem); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	count, err = repo.CountByInvoiceID(ctx, inv.ID)
+	count, err = repo.CountByInvoiceID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("CountByInvoiceID() error: %v", err)
 	}

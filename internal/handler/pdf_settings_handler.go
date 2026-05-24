@@ -353,10 +353,13 @@ func (h *PDFSettingsHandler) PreviewPDF(w http.ResponseWriter, r *http.Request) 
 // getPreviewInvoice returns the most recent invoice, or generates sample data.
 func (h *PDFSettingsHandler) getPreviewInvoice(r *http.Request) *domain.Invoice {
 	if h.invoiceSvc != nil {
-		filter := domain.InvoiceFilter{Limit: 1, Offset: 0}
-		invoices, _, err := h.invoiceSvc.List(r.Context(), filter)
-		if err == nil && len(invoices) > 0 {
-			return &invoices[0]
+		company, err := CompanyFromContext(r.Context())
+		if err == nil {
+			filter := domain.InvoiceFilter{Limit: 1, Offset: 0}
+			invoices, _, err := h.invoiceSvc.List(r.Context(), company.ID, filter)
+			if err == nil && len(invoices) > 0 {
+				return &invoices[0]
+			}
 		}
 	}
 

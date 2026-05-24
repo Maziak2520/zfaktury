@@ -61,15 +61,21 @@ func parseInvoiceID(r *http.Request) (int64, error) {
 	return strconv.ParseInt(idStr, 10, 64)
 }
 
-// SendReminder handles POST /{invoiceID}/remind.
+// SendReminder handles POST /api/v1/companies/{companyID}/invoices/{id}/remind.
 func (h *ReminderHandler) SendReminder(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	invoiceID, err := parseInvoiceID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	reminder, err := h.svc.SendReminder(r.Context(), invoiceID)
+	reminder, err := h.svc.SendReminder(r.Context(), company.ID, invoiceID)
 	if err != nil {
 		slog.Error("failed to send payment reminder", "invoice_id", invoiceID, "error", err)
 		switch {
@@ -86,15 +92,21 @@ func (h *ReminderHandler) SendReminder(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, reminderFromDomain(reminder))
 }
 
-// ListReminders handles GET /{invoiceID}/reminders.
+// ListReminders handles GET /api/v1/companies/{companyID}/invoices/{id}/reminders.
 func (h *ReminderHandler) ListReminders(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	invoiceID, err := parseInvoiceID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	reminders, err := h.svc.GetReminders(r.Context(), invoiceID)
+	reminders, err := h.svc.GetReminders(r.Context(), company.ID, invoiceID)
 	if err != nil {
 		slog.Error("failed to list payment reminders", "invoice_id", invoiceID, "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list reminders")

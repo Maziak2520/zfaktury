@@ -20,15 +20,15 @@ func NewDocumentRepository(db *sql.DB) *DocumentRepository {
 	return &DocumentRepository{db: db}
 }
 
-// Create inserts a new expense document into the database.
-func (r *DocumentRepository) Create(ctx context.Context, doc *domain.ExpenseDocument) error {
+// Create inserts a new expense document into the database under the given company.
+func (r *DocumentRepository) Create(ctx context.Context, companyID int64, doc *domain.ExpenseDocument) error {
 	now := time.Now()
 	doc.CreatedAt = now
 
 	result, err := r.db.ExecContext(ctx, `
-		INSERT INTO expense_documents (expense_id, filename, content_type, storage_path, size, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		doc.ExpenseID, doc.Filename, doc.ContentType, doc.StoragePath, doc.Size, doc.CreatedAt.Format(time.RFC3339),
+		INSERT INTO expense_documents (company_id, expense_id, filename, content_type, storage_path, size, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		companyID, doc.ExpenseID, doc.Filename, doc.ContentType, doc.StoragePath, doc.Size, doc.CreatedAt.Format(time.RFC3339),
 	)
 	if err != nil {
 		return fmt.Errorf("inserting expense document: %w", err)
@@ -42,8 +42,8 @@ func (r *DocumentRepository) Create(ctx context.Context, doc *domain.ExpenseDocu
 	return nil
 }
 
-// GetByID retrieves a single expense document by ID.
-func (r *DocumentRepository) GetByID(ctx context.Context, id int64) (*domain.ExpenseDocument, error) {
+// GetByID retrieves a single expense document by ID within the given company.
+func (r *DocumentRepository) GetByID(ctx context.Context, companyID, id int64) (*domain.ExpenseDocument, error) {
 	doc := &domain.ExpenseDocument{}
 	var createdAtStr string
 	var deletedAtStr sql.NullString
@@ -51,14 +51,14 @@ func (r *DocumentRepository) GetByID(ctx context.Context, id int64) (*domain.Exp
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, expense_id, filename, content_type, storage_path, size, created_at, deleted_at
 		FROM expense_documents
-		WHERE id = ? AND deleted_at IS NULL`, id,
+		WHERE id = ? AND company_id = ? AND deleted_at IS NULL`, id, companyID,
 	).Scan(
 		&doc.ID, &doc.ExpenseID, &doc.Filename, &doc.ContentType,
 		&doc.StoragePath, &doc.Size, &createdAtStr, &deletedAtStr,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("expense document %d not found: %w", id, err)
+			return nil, fmt.Errorf("expense document %d not found: %w", id, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying expense document %d: %w", id, err)
 	}
@@ -75,13 +75,13 @@ func (r *DocumentRepository) GetByID(ctx context.Context, id int64) (*domain.Exp
 	return doc, nil
 }
 
-// ListByExpenseID retrieves all active documents for a given expense.
-func (r *DocumentRepository) ListByExpenseID(ctx context.Context, expenseID int64) ([]domain.ExpenseDocument, error) {
+// ListByExpenseID retrieves all active documents for a given expense within the given company.
+func (r *DocumentRepository) ListByExpenseID(ctx context.Context, companyID, expenseID int64) ([]domain.ExpenseDocument, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, expense_id, filename, content_type, storage_path, size, created_at, deleted_at
 		FROM expense_documents
-		WHERE expense_id = ? AND deleted_at IS NULL
-		ORDER BY created_at ASC`, expenseID,
+		WHERE expense_id = ? AND company_id = ? AND deleted_at IS NULL
+		ORDER BY created_at ASC`, expenseID, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing expense documents for expense %d: %w", expenseID, err)
@@ -119,12 +119,12 @@ func (r *DocumentRepository) ListByExpenseID(ctx context.Context, expenseID int6
 	return docs, nil
 }
 
-// Delete performs a soft delete on an expense document.
-func (r *DocumentRepository) Delete(ctx context.Context, id int64) error {
+// Delete performs a soft delete on an expense document within the given company.
+func (r *DocumentRepository) Delete(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE expense_documents SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		now.Format(time.RFC3339), id,
+		UPDATE expense_documents SET deleted_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		now.Format(time.RFC3339), id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("soft-deleting expense document %d: %w", id, err)
@@ -135,17 +135,17 @@ func (r *DocumentRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("checking rows affected for expense document %d: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("expense document %d not found or already deleted", id)
+		return fmt.Errorf("expense document %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// CountByExpenseID returns the number of active documents for a given expense.
-func (r *DocumentRepository) CountByExpenseID(ctx context.Context, expenseID int64) (int, error) {
+// CountByExpenseID returns the number of active documents for a given expense within the given company.
+func (r *DocumentRepository) CountByExpenseID(ctx context.Context, companyID, expenseID int64) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM expense_documents
-		WHERE expense_id = ? AND deleted_at IS NULL`, expenseID,
+		WHERE expense_id = ? AND company_id = ? AND deleted_at IS NULL`, expenseID, companyID,
 	).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("counting documents for expense %d: %w", expenseID, err)

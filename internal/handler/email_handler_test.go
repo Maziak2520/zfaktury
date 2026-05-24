@@ -39,6 +39,7 @@ func setupEmailRouter(t *testing.T) *chi.Mux {
 	h := NewEmailHandler(invoiceSvc, settingsSvc, pdfGen, isdocGen, sender)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Post("/api/v1/invoices/{id}/send-email", h.SendEmail)
 	return r
 }

@@ -40,7 +40,7 @@ func TestRecurringInvoiceRepository_Create(t *testing.T) {
 
 	ri := makeRecurringInvoice(customer.ID)
 
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -62,11 +62,11 @@ func TestRecurringInvoiceRepository_GetByID(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestRecurringInvoiceRepository_GetByID_NotFound(t *testing.T) {
 	repo := NewRecurringInvoiceRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByID(ctx, 99999)
+	_, err := repo.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent recurring invoice")
 	}
@@ -109,7 +109,7 @@ func TestRecurringInvoiceRepository_Update(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -120,11 +120,11 @@ func TestRecurringInvoiceRepository_Update(t *testing.T) {
 		{Description: "New item B", Quantity: 100, Unit: "ks", UnitPrice: 30000, VATRatePercent: 0, SortOrder: 1},
 	}
 
-	if err := repo.Update(ctx, ri); err != nil {
+	if err := repo.Update(ctx, 1, ri); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -149,15 +149,15 @@ func TestRecurringInvoiceRepository_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := repo.Delete(ctx, ri.ID); err != nil {
+	if err := repo.Delete(ctx, 1, ri.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	_, err := repo.GetByID(ctx, ri.ID)
+	_, err := repo.GetByID(ctx, 1, ri.ID)
 	if err == nil {
 		t.Error("expected error when getting deleted recurring invoice")
 	}
@@ -168,7 +168,7 @@ func TestRecurringInvoiceRepository_Delete_NotFound(t *testing.T) {
 	repo := NewRecurringInvoiceRepository(db)
 	ctx := context.Background()
 
-	err := repo.Delete(ctx, 99999)
+	err := repo.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent recurring invoice")
 	}
@@ -185,10 +185,10 @@ func TestRecurringInvoiceRepository_List(t *testing.T) {
 	ri2.Name = "Quarterly service"
 	ri2.Frequency = domain.FrequencyQuarterly
 
-	repo.Create(ctx, ri1)
-	repo.Create(ctx, ri2)
+	repo.Create(ctx, 1, ri1)
+	repo.Create(ctx, 1, ri2)
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -206,23 +206,23 @@ func TestRecurringInvoiceRepository_ListDue(t *testing.T) {
 	// Due today.
 	ri1 := makeRecurringInvoice(customer.ID)
 	ri1.NextIssueDate = time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	repo.Create(ctx, ri1)
+	repo.Create(ctx, 1, ri1)
 
 	// Due in the future.
 	ri2 := makeRecurringInvoice(customer.ID)
 	ri2.Name = "Future invoice"
 	ri2.NextIssueDate = time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-	repo.Create(ctx, ri2)
+	repo.Create(ctx, 1, ri2)
 
 	// Inactive but due.
 	ri3 := makeRecurringInvoice(customer.ID)
 	ri3.Name = "Inactive invoice"
 	ri3.NextIssueDate = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	ri3.IsActive = false
-	repo.Create(ctx, ri3)
+	repo.Create(ctx, 1, ri3)
 
 	today := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	due, err := repo.ListDue(ctx, today)
+	due, err := repo.ListDue(ctx, 1, today)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -245,13 +245,13 @@ func TestRecurringInvoiceRepository_Deactivate(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
-	if err := repo.Deactivate(ctx, ri.ID); err != nil {
+	if err := repo.Deactivate(ctx, 1, ri.ID); err != nil {
 		t.Fatalf("Deactivate() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestRecurringInvoiceRepository_Deactivate_NotFound(t *testing.T) {
 	repo := NewRecurringInvoiceRepository(db)
 	ctx := context.Background()
 
-	err := repo.Deactivate(ctx, 99999)
+	err := repo.Deactivate(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent recurring invoice")
 	}
@@ -278,10 +278,10 @@ func TestRecurringInvoiceRepository_Deactivate_AlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
-	repo.Delete(ctx, ri.ID)
+	repo.Create(ctx, 1, ri)
+	repo.Delete(ctx, 1, ri.ID)
 
-	err := repo.Deactivate(ctx, ri.ID)
+	err := repo.Deactivate(ctx, 1, ri.ID)
 	if err == nil {
 		t.Error("expected error when deactivating a deleted recurring invoice")
 	}
@@ -294,10 +294,10 @@ func TestRecurringInvoiceRepository_Delete_AlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
-	repo.Delete(ctx, ri.ID)
+	repo.Create(ctx, 1, ri)
+	repo.Delete(ctx, 1, ri.ID)
 
-	err := repo.Delete(ctx, ri.ID)
+	err := repo.Delete(ctx, 1, ri.ID)
 	if err == nil {
 		t.Error("expected error when deleting already deleted recurring invoice")
 	}
@@ -313,11 +313,11 @@ func TestRecurringInvoiceRepository_Create_WithEndDate(t *testing.T) {
 	ri := makeRecurringInvoice(customer.ID)
 	ri.EndDate = &endDate
 
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -336,17 +336,17 @@ func TestRecurringInvoiceRepository_Update_WithEndDate(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
 	endDate := time.Date(2027, 6, 30, 0, 0, 0, 0, time.UTC)
 	ri.EndDate = &endDate
 	ri.Name = "Updated with end date"
 
-	if err := repo.Update(ctx, ri); err != nil {
+	if err := repo.Update(ctx, 1, ri); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestRecurringInvoiceRepository_Update_MultipleItems(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
 	// Update with multiple items to ensure all items get IDs assigned.
 	ri.Items = []domain.RecurringInvoiceItem{
@@ -374,7 +374,7 @@ func TestRecurringInvoiceRepository_Update_MultipleItems(t *testing.T) {
 		{Description: "Item C", Quantity: 300, Unit: "ks", UnitPrice: 30000, VATRatePercent: 0, SortOrder: 2},
 	}
 
-	if err := repo.Update(ctx, ri); err != nil {
+	if err := repo.Update(ctx, 1, ri); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
@@ -387,7 +387,7 @@ func TestRecurringInvoiceRepository_Update_MultipleItems(t *testing.T) {
 		}
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -408,7 +408,7 @@ func TestRecurringInvoiceRepository_Create_MultipleItems(t *testing.T) {
 		{Description: "Item 2", Quantity: 200, Unit: "hod", UnitPrice: 20000, VATRatePercent: 15, SortOrder: 1},
 	}
 
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -427,7 +427,7 @@ func TestRecurringInvoiceRepository_List_Empty(t *testing.T) {
 	repo := NewRecurringInvoiceRepository(db)
 	ctx := context.Background()
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -444,15 +444,15 @@ func TestRecurringInvoiceRepository_List_ExcludesSoftDeleted(t *testing.T) {
 
 	ri1 := makeRecurringInvoice(customer.ID)
 	ri1.Name = "Keep me"
-	repo.Create(ctx, ri1)
+	repo.Create(ctx, 1, ri1)
 
 	ri2 := makeRecurringInvoice(customer.ID)
 	ri2.Name = "Delete me"
-	repo.Create(ctx, ri2)
+	repo.Create(ctx, 1, ri2)
 
-	repo.Delete(ctx, ri2.ID)
+	repo.Delete(ctx, 1, ri2.ID)
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -471,9 +471,9 @@ func TestRecurringInvoiceRepository_List_WithCustomerData(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -497,9 +497,9 @@ func TestRecurringInvoiceRepository_List_WithEndDate(t *testing.T) {
 	endDate := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
 	ri := makeRecurringInvoice(customer.ID)
 	ri.EndDate = &endDate
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -520,7 +520,7 @@ func TestRecurringInvoiceRepository_ListDue_Empty(t *testing.T) {
 	ctx := context.Background()
 
 	today := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	due, err := repo.ListDue(ctx, today)
+	due, err := repo.ListDue(ctx, 1, today)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -539,10 +539,10 @@ func TestRecurringInvoiceRepository_ListDue_WithEndDate(t *testing.T) {
 	ri := makeRecurringInvoice(customer.ID)
 	ri.NextIssueDate = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	ri.EndDate = &endDate
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
 	today := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	due, err := repo.ListDue(ctx, today)
+	due, err := repo.ListDue(ctx, 1, today)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -567,15 +567,15 @@ func TestRecurringInvoiceRepository_ListDue_MultipleWithItems(t *testing.T) {
 		{Description: "Item A", Quantity: 100, Unit: "ks", UnitPrice: 10000, VATRatePercent: 21, SortOrder: 0},
 		{Description: "Item B", Quantity: 200, Unit: "hod", UnitPrice: 20000, VATRatePercent: 15, SortOrder: 1},
 	}
-	repo.Create(ctx, ri1)
+	repo.Create(ctx, 1, ri1)
 
 	ri2 := makeRecurringInvoice(customer.ID)
 	ri2.Name = "Due 2"
 	ri2.NextIssueDate = time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)
-	repo.Create(ctx, ri2)
+	repo.Create(ctx, 1, ri2)
 
 	today := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	due, err := repo.ListDue(ctx, today)
+	due, err := repo.ListDue(ctx, 1, today)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -599,10 +599,10 @@ func TestRecurringInvoiceRepository_List_NoCustomerMatch(t *testing.T) {
 	ctx := context.Background()
 
 	ri := makeRecurringInvoice(customer.ID)
-	repo.Create(ctx, ri)
+	repo.Create(ctx, 1, ri)
 
 	// Verify List returns customer data populated when customer exists.
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}

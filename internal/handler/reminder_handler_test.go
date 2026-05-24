@@ -43,7 +43,7 @@ func setupReminderRouter(t *testing.T) (*chi.Mux, *domain.Invoice) {
 	})
 
 	// Seed an overdue invoice.
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Service", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 	// Mark as overdue.
@@ -68,6 +68,7 @@ func setupReminderRouter(t *testing.T) (*chi.Mux, *domain.Invoice) {
 	reminderHandler := NewReminderHandler(reminderSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/invoices", reminderHandler.Routes())
 
 	return r, inv

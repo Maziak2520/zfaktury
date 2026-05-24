@@ -25,8 +25,8 @@ func NewRecurringInvoiceService(repo repository.RecurringInvoiceRepo, invoices *
 	}
 }
 
-// Create validates and persists a new recurring invoice.
-func (s *RecurringInvoiceService) Create(ctx context.Context, ri *domain.RecurringInvoice) error {
+// Create validates and persists a new recurring invoice under the given company.
+func (s *RecurringInvoiceService) Create(ctx context.Context, companyID int64, ri *domain.RecurringInvoice) error {
 	if ri.Name == "" {
 		return fmt.Errorf("name is required: %w", domain.ErrInvalidInput)
 	}
@@ -48,7 +48,7 @@ func (s *RecurringInvoiceService) Create(ctx context.Context, ri *domain.Recurri
 		ri.CurrencyCode = domain.CurrencyCZK
 	}
 
-	if err := s.repo.Create(ctx, ri); err != nil {
+	if err := s.repo.Create(ctx, companyID, ri); err != nil {
 		return fmt.Errorf("creating recurring invoice: %w", err)
 	}
 	if s.audit != nil {
@@ -57,8 +57,8 @@ func (s *RecurringInvoiceService) Create(ctx context.Context, ri *domain.Recurri
 	return nil
 }
 
-// Update validates and updates an existing recurring invoice.
-func (s *RecurringInvoiceService) Update(ctx context.Context, ri *domain.RecurringInvoice) error {
+// Update validates and updates an existing recurring invoice within the given company.
+func (s *RecurringInvoiceService) Update(ctx context.Context, companyID int64, ri *domain.RecurringInvoice) error {
 	if ri.ID == 0 {
 		return fmt.Errorf("recurring invoice ID is required: %w", domain.ErrInvalidInput)
 	}
@@ -73,12 +73,12 @@ func (s *RecurringInvoiceService) Update(ctx context.Context, ri *domain.Recurri
 	}
 
 	// Fetch existing for audit trail.
-	existing, err := s.repo.GetByID(ctx, ri.ID)
+	existing, err := s.repo.GetByID(ctx, companyID, ri.ID)
 	if err != nil {
 		return fmt.Errorf("fetching recurring invoice for update: %w", err)
 	}
 
-	if err := s.repo.Update(ctx, ri); err != nil {
+	if err := s.repo.Update(ctx, companyID, ri); err != nil {
 		return fmt.Errorf("updating recurring invoice: %w", err)
 	}
 	if s.audit != nil {
@@ -87,12 +87,12 @@ func (s *RecurringInvoiceService) Update(ctx context.Context, ri *domain.Recurri
 	return nil
 }
 
-// Delete removes a recurring invoice by ID (soft delete).
-func (s *RecurringInvoiceService) Delete(ctx context.Context, id int64) error {
+// Delete removes a recurring invoice by ID (soft delete) within the given company.
+func (s *RecurringInvoiceService) Delete(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("recurring invoice ID is required: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, companyID, id); err != nil {
 		return fmt.Errorf("deleting recurring invoice: %w", err)
 	}
 	if s.audit != nil {
@@ -101,43 +101,43 @@ func (s *RecurringInvoiceService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetByID retrieves a recurring invoice by its ID.
-func (s *RecurringInvoiceService) GetByID(ctx context.Context, id int64) (*domain.RecurringInvoice, error) {
+// GetByID retrieves a recurring invoice by its ID within the given company.
+func (s *RecurringInvoiceService) GetByID(ctx context.Context, companyID, id int64) (*domain.RecurringInvoice, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("recurring invoice ID is required: %w", domain.ErrInvalidInput)
 	}
-	ri, err := s.repo.GetByID(ctx, id)
+	ri, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching recurring invoice: %w", err)
 	}
 	return ri, nil
 }
 
-// List retrieves all recurring invoices.
-func (s *RecurringInvoiceService) List(ctx context.Context) ([]domain.RecurringInvoice, error) {
-	items, err := s.repo.List(ctx)
+// List retrieves all recurring invoices within the given company.
+func (s *RecurringInvoiceService) List(ctx context.Context, companyID int64) ([]domain.RecurringInvoice, error) {
+	items, err := s.repo.List(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("listing recurring invoices: %w", err)
 	}
 	return items, nil
 }
 
-// GenerateInvoice creates a single invoice from a recurring invoice template.
-func (s *RecurringInvoiceService) GenerateInvoice(ctx context.Context, id int64) (*domain.Invoice, error) {
-	ri, err := s.repo.GetByID(ctx, id)
+// GenerateInvoice creates a single invoice from a recurring invoice template within the given company.
+func (s *RecurringInvoiceService) GenerateInvoice(ctx context.Context, companyID, id int64) (*domain.Invoice, error) {
+	ri, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching recurring invoice for generation: %w", err)
 	}
 
-	return s.createInvoiceFromTemplate(ctx, ri, ri.NextIssueDate)
+	return s.createInvoiceFromTemplate(ctx, companyID, ri, ri.NextIssueDate)
 }
 
 // ProcessDue finds all due recurring invoices, creates draft invoices, advances
-// the next_issue_date, and deactivates recurring invoices that are past their end_date.
-// Returns the count of generated invoices.
-func (s *RecurringInvoiceService) ProcessDue(ctx context.Context) (int, error) {
+// the next_issue_date, and deactivates recurring invoices that are past their end_date,
+// scoped to the given company. Returns the count of generated invoices.
+func (s *RecurringInvoiceService) ProcessDue(ctx context.Context, companyID int64) (int, error) {
 	today := time.Now().Truncate(24 * time.Hour)
-	dueList, err := s.repo.ListDue(ctx, today)
+	dueList, err := s.repo.ListDue(ctx, companyID, today)
 	if err != nil {
 		return 0, fmt.Errorf("listing due recurring invoices: %w", err)
 	}
@@ -148,7 +148,7 @@ func (s *RecurringInvoiceService) ProcessDue(ctx context.Context) (int, error) {
 
 		// Check if past end_date - deactivate instead of generating.
 		if ri.EndDate != nil && today.After(*ri.EndDate) {
-			if err := s.repo.Deactivate(ctx, ri.ID); err != nil {
+			if err := s.repo.Deactivate(ctx, companyID, ri.ID); err != nil {
 				return count, fmt.Errorf("deactivating expired recurring invoice %d: %w", ri.ID, err)
 			}
 			if s.audit != nil {
@@ -158,7 +158,7 @@ func (s *RecurringInvoiceService) ProcessDue(ctx context.Context) (int, error) {
 		}
 
 		// Generate the invoice.
-		_, err := s.createInvoiceFromTemplate(ctx, ri, ri.NextIssueDate)
+		_, err := s.createInvoiceFromTemplate(ctx, companyID, ri, ri.NextIssueDate)
 		if err != nil {
 			return count, fmt.Errorf("generating invoice from recurring %d: %w", ri.ID, err)
 		}
@@ -172,7 +172,7 @@ func (s *RecurringInvoiceService) ProcessDue(ctx context.Context) (int, error) {
 			ri.IsActive = false
 		}
 
-		if err := s.repo.Update(ctx, ri); err != nil {
+		if err := s.repo.Update(ctx, companyID, ri); err != nil {
 			return count, fmt.Errorf("updating recurring invoice %d next date: %w", ri.ID, err)
 		}
 	}
@@ -180,8 +180,9 @@ func (s *RecurringInvoiceService) ProcessDue(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// createInvoiceFromTemplate builds a domain.Invoice from a RecurringInvoice template.
-func (s *RecurringInvoiceService) createInvoiceFromTemplate(ctx context.Context, ri *domain.RecurringInvoice, issueDate time.Time) (*domain.Invoice, error) {
+// createInvoiceFromTemplate builds a domain.Invoice from a RecurringInvoice template
+// and persists it within the given company.
+func (s *RecurringInvoiceService) createInvoiceFromTemplate(ctx context.Context, companyID int64, ri *domain.RecurringInvoice, issueDate time.Time) (*domain.Invoice, error) {
 	invoice := &domain.Invoice{
 		Type:           domain.InvoiceTypeRegular,
 		Status:         domain.InvoiceStatusDraft,
@@ -212,7 +213,7 @@ func (s *RecurringInvoiceService) createInvoiceFromTemplate(ctx context.Context,
 	}
 
 	// Create assigns invoice number from sequence and calculates totals.
-	if err := s.invoices.Create(ctx, invoice); err != nil {
+	if err := s.invoices.Create(ctx, companyID, invoice); err != nil {
 		return nil, fmt.Errorf("creating invoice from template: %w", err)
 	}
 

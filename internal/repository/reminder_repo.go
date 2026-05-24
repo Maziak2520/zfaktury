@@ -19,14 +19,16 @@ func NewReminderRepository(db *sql.DB) *ReminderRepository {
 	return &ReminderRepository{db: db}
 }
 
-// Create inserts a new payment reminder. Sets CreatedAt to now.
-func (r *ReminderRepository) Create(ctx context.Context, reminder *domain.PaymentReminder) error {
+// Create inserts a new payment reminder under the given company. Sets CreatedAt to now.
+func (r *ReminderRepository) Create(ctx context.Context, companyID int64, reminder *domain.PaymentReminder) error {
 	reminder.CreatedAt = time.Now()
 
 	result, err := r.db.ExecContext(ctx, `
 		INSERT INTO payment_reminders (
+			company_id,
 			invoice_id, reminder_number, sent_at, sent_to, subject, body_preview, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		reminder.InvoiceID, reminder.ReminderNumber,
 		reminder.SentAt.Format(time.RFC3339), reminder.SentTo,
 		reminder.Subject, reminder.BodyPreview,
@@ -44,13 +46,14 @@ func (r *ReminderRepository) Create(ctx context.Context, reminder *domain.Paymen
 	return nil
 }
 
-// ListByInvoiceID returns all reminders for the given invoice, ordered by sent_at ASC.
-func (r *ReminderRepository) ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.PaymentReminder, error) {
+// ListByInvoiceID returns all reminders for the given invoice within the given company,
+// ordered by sent_at ASC.
+func (r *ReminderRepository) ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.PaymentReminder, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, invoice_id, reminder_number, sent_at, sent_to, subject, body_preview, created_at
 		FROM payment_reminders
-		WHERE invoice_id = ?
-		ORDER BY sent_at ASC`, invoiceID,
+		WHERE invoice_id = ? AND company_id = ?
+		ORDER BY sent_at ASC`, invoiceID, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing reminders for invoice %d: %w", invoiceID, err)
@@ -87,11 +90,11 @@ func (r *ReminderRepository) ListByInvoiceID(ctx context.Context, invoiceID int6
 	return reminders, nil
 }
 
-// CountByInvoiceID returns the number of reminders sent for the given invoice.
-func (r *ReminderRepository) CountByInvoiceID(ctx context.Context, invoiceID int64) (int, error) {
+// CountByInvoiceID returns the number of reminders sent for the given invoice within the given company.
+func (r *ReminderRepository) CountByInvoiceID(ctx context.Context, companyID, invoiceID int64) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM payment_reminders WHERE invoice_id = ?`, invoiceID,
+		SELECT COUNT(*) FROM payment_reminders WHERE invoice_id = ? AND company_id = ?`, invoiceID, companyID,
 	).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("counting reminders for invoice %d: %w", invoiceID, err)

@@ -14,7 +14,7 @@ func TestStatusHistoryRepository_CreateAndList(t *testing.T) {
 	ctx := context.Background()
 
 	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "History Test Customer"})
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Work", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 
@@ -30,7 +30,7 @@ func TestStatusHistoryRepository_CreateAndList(t *testing.T) {
 		ChangedAt: now,
 		Note:      "sent to customer",
 	}
-	if err := repo.Create(ctx, change1); err != nil {
+	if err := repo.Create(ctx, 1, change1); err != nil {
 		t.Fatalf("creating status change 1: %v", err)
 	}
 	if change1.ID == 0 {
@@ -44,12 +44,12 @@ func TestStatusHistoryRepository_CreateAndList(t *testing.T) {
 		ChangedAt: now.Add(time.Hour),
 		Note:      "automatically marked as overdue",
 	}
-	if err := repo.Create(ctx, change2); err != nil {
+	if err := repo.Create(ctx, 1, change2); err != nil {
 		t.Fatalf("creating status change 2: %v", err)
 	}
 
 	// List changes.
-	changes, err := repo.ListByInvoiceID(ctx, inv.ID)
+	changes, err := repo.ListByInvoiceID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("listing status history: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestStatusHistoryRepository_ListByInvoiceID_Empty(t *testing.T) {
 	repo := NewStatusHistoryRepository(db)
 
 	// Non-existent invoice should return empty slice, not error.
-	changes, err := repo.ListByInvoiceID(ctx, 9999)
+	changes, err := repo.ListByInvoiceID(ctx, 1, 9999)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

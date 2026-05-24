@@ -26,6 +26,7 @@ func setupRecurringExpenseRouter(t *testing.T) *chi.Mux {
 	h := NewRecurringExpenseHandler(recurringExpenseSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/recurring-expenses", h.Routes())
 	return r
 }

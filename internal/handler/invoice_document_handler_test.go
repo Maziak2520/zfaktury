@@ -23,13 +23,14 @@ func setupInvoiceDocumentRouter(t *testing.T) (*chi.Mux, int64, string) {
 	dataDir := t.TempDir()
 
 	contact := testutil.SeedContact(t, db, 1, nil)
-	invoice := testutil.SeedInvoice(t, db, contact.ID, nil)
+	invoice := testutil.SeedInvoice(t, db, 1, contact.ID, nil)
 
 	docRepo := repository.NewInvoiceDocumentRepository(db)
 	docSvc := service.NewInvoiceDocumentService(docRepo, dataDir, nil)
 	h := NewInvoiceDocumentHandler(docSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Route("/api/v1", func(api chi.Router) {
 		// Invoice-scoped document routes
 		api.Get("/invoices/{id}/documents", h.ListByInvoice)
@@ -47,19 +48,20 @@ func setupInvoiceDocumentRouterWithDoc(t *testing.T) (*chi.Mux, int64, int64, st
 	dataDir := t.TempDir()
 
 	contact := testutil.SeedContact(t, db, 1, nil)
-	invoice := testutil.SeedInvoice(t, db, contact.ID, nil)
+	invoice := testutil.SeedInvoice(t, db, 1, contact.ID, nil)
 
 	docRepo := repository.NewInvoiceDocumentRepository(db)
 	docSvc := service.NewInvoiceDocumentService(docRepo, dataDir, nil)
 
 	// Upload a test document via the service layer.
-	doc, err := docSvc.Upload(t.Context(), invoice.ID, "test.pdf", "application/pdf", []byte("%PDF-1.4 test content"))
+	doc, err := docSvc.Upload(t.Context(), 1, invoice.ID, "test.pdf", "application/pdf", []byte("%PDF-1.4 test content"))
 	if err != nil {
 		t.Fatalf("uploading test document: %v", err)
 	}
 
 	h := NewInvoiceDocumentHandler(docSvc)
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/invoices/{id}/documents", h.ListByInvoice)
 		api.Mount("/", h.Routes())

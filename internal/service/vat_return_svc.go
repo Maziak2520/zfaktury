@@ -13,6 +13,12 @@ import (
 	"github.com/zajca/zfaktury/internal/vatxml"
 )
 
+// vatReturnFallbackCompanyID is a transitional shim — VAT-return service is
+// not yet company-scoped (T22 will thread companyID through it). Until then,
+// all VAT-return computations operate against the migration-025 default
+// company (id=1). Remove when this service gains an explicit companyID.
+const vatReturnFallbackCompanyID int64 = 1 // remove in T22
+
 // VATReturnService provides business logic for VAT return management.
 type VATReturnService struct {
 	repo         repository.VATReturnRepo
@@ -155,7 +161,8 @@ func (s *VATReturnService) Recalculate(ctx context.Context, id int64) (*domain.V
 	dateFrom, dateTo := periodDateRange(vr.Period)
 
 	// Query invoices in the period: sent, paid, overdue; NOT credit_note type.
-	invoices, _, err := s.invoiceRepo.List(ctx, domain.InvoiceFilter{
+	// fallbackCompanyID: VAT returns service is not yet company-scoped (remove in T22).
+	invoices, _, err := s.invoiceRepo.List(ctx, vatReturnFallbackCompanyID, domain.InvoiceFilter{
 		DateFrom: &dateFrom,
 		DateTo:   &dateTo,
 		Limit:    10000,
@@ -179,7 +186,7 @@ func (s *VATReturnService) Recalculate(ctx context.Context, id int64) (*domain.V
 
 		invoiceIDs = append(invoiceIDs, inv.ID)
 
-		fullInv, err := s.invoiceRepo.GetByID(ctx, inv.ID)
+		fullInv, err := s.invoiceRepo.GetByID(ctx, vatReturnFallbackCompanyID, inv.ID)
 		if err != nil {
 			return nil, fmt.Errorf("fetching invoice %d items for vat_return: %w", inv.ID, err)
 		}
@@ -200,7 +207,7 @@ func (s *VATReturnService) Recalculate(ctx context.Context, id int64) (*domain.V
 	}
 
 	// Query expenses in the period: tax deductible only.
-	expenses, _, err := s.expenseRepo.List(ctx, domain.ExpenseFilter{
+	expenses, _, err := s.expenseRepo.List(ctx, vatReturnFallbackCompanyID, domain.ExpenseFilter{
 		DateFrom: &dateFrom,
 		DateTo:   &dateTo,
 		Limit:    10000,

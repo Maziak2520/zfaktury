@@ -628,49 +628,53 @@ func (m *fakturoidMockContactRepo) List(_ context.Context, _ int64, _ domain.Con
 
 type fakturoidMockInvoiceRepo struct{}
 
-func (m *fakturoidMockInvoiceRepo) Create(_ context.Context, inv *domain.Invoice) error {
+func (m *fakturoidMockInvoiceRepo) Create(_ context.Context, _ int64, inv *domain.Invoice) error {
 	inv.ID = 2000
 	return nil
 }
-func (m *fakturoidMockInvoiceRepo) Update(_ context.Context, _ *domain.Invoice) error { return nil }
-func (m *fakturoidMockInvoiceRepo) Delete(_ context.Context, _ int64) error           { return nil }
-func (m *fakturoidMockInvoiceRepo) GetByID(_ context.Context, _ int64) (*domain.Invoice, error) {
-	return nil, nil
-}
-func (m *fakturoidMockInvoiceRepo) List(_ context.Context, _ domain.InvoiceFilter) ([]domain.Invoice, int, error) {
-	return nil, 0, nil
-}
-func (m *fakturoidMockInvoiceRepo) UpdateStatus(_ context.Context, _ int64, _ string) error {
+func (m *fakturoidMockInvoiceRepo) Update(_ context.Context, _ int64, _ *domain.Invoice) error {
 	return nil
 }
-func (m *fakturoidMockInvoiceRepo) GetNextNumber(_ context.Context, _ int64) (string, error) {
-	return "INV-001", nil
-}
-func (m *fakturoidMockInvoiceRepo) FindByRelatedInvoice(_ context.Context, _ int64, _ string) (*domain.Invoice, error) {
+func (m *fakturoidMockInvoiceRepo) Delete(_ context.Context, _, _ int64) error { return nil }
+func (m *fakturoidMockInvoiceRepo) GetByID(_ context.Context, _, _ int64) (*domain.Invoice, error) {
 	return nil, nil
 }
-func (m *fakturoidMockInvoiceRepo) GetRelatedInvoices(_ context.Context, _ int64) ([]domain.Invoice, error) {
+func (m *fakturoidMockInvoiceRepo) List(_ context.Context, _ int64, _ domain.InvoiceFilter) ([]domain.Invoice, int, error) {
+	return nil, 0, nil
+}
+func (m *fakturoidMockInvoiceRepo) UpdateStatus(_ context.Context, _, _ int64, _ string) error {
+	return nil
+}
+func (m *fakturoidMockInvoiceRepo) GetNextNumber(_ context.Context, _, _ int64) (string, error) {
+	return "INV-001", nil
+}
+func (m *fakturoidMockInvoiceRepo) FindByRelatedInvoice(_ context.Context, _, _ int64, _ string) (*domain.Invoice, error) {
+	return nil, nil
+}
+func (m *fakturoidMockInvoiceRepo) GetRelatedInvoices(_ context.Context, _, _ int64) ([]domain.Invoice, error) {
 	return nil, nil
 }
 
 type fakturoidMockExpenseRepo struct{}
 
-func (m *fakturoidMockExpenseRepo) Create(_ context.Context, exp *domain.Expense) error {
+func (m *fakturoidMockExpenseRepo) Create(_ context.Context, _ int64, exp *domain.Expense) error {
 	exp.ID = 3000
 	return nil
 }
-func (m *fakturoidMockExpenseRepo) Update(_ context.Context, _ *domain.Expense) error { return nil }
-func (m *fakturoidMockExpenseRepo) Delete(_ context.Context, _ int64) error           { return nil }
-func (m *fakturoidMockExpenseRepo) GetByID(_ context.Context, _ int64) (*domain.Expense, error) {
-	return nil, nil
-}
-func (m *fakturoidMockExpenseRepo) List(_ context.Context, _ domain.ExpenseFilter) ([]domain.Expense, int, error) {
-	return nil, 0, nil
-}
-func (m *fakturoidMockExpenseRepo) MarkTaxReviewed(_ context.Context, _ []int64) error {
+func (m *fakturoidMockExpenseRepo) Update(_ context.Context, _ int64, _ *domain.Expense) error {
 	return nil
 }
-func (m *fakturoidMockExpenseRepo) UnmarkTaxReviewed(_ context.Context, _ []int64) error {
+func (m *fakturoidMockExpenseRepo) Delete(_ context.Context, _, _ int64) error { return nil }
+func (m *fakturoidMockExpenseRepo) GetByID(_ context.Context, _, _ int64) (*domain.Expense, error) {
+	return nil, nil
+}
+func (m *fakturoidMockExpenseRepo) List(_ context.Context, _ int64, _ domain.ExpenseFilter) ([]domain.Expense, int, error) {
+	return nil, 0, nil
+}
+func (m *fakturoidMockExpenseRepo) MarkTaxReviewed(_ context.Context, _ int64, _ []int64) error {
+	return nil
+}
+func (m *fakturoidMockExpenseRepo) UnmarkTaxReviewed(_ context.Context, _ int64, _ []int64) error {
 	return nil
 }
 
@@ -681,19 +685,19 @@ type fakturoidMockDocumentRepo struct {
 	count int
 }
 
-func (m *fakturoidMockDocumentRepo) Create(_ context.Context, doc *domain.ExpenseDocument) error {
+func (m *fakturoidMockDocumentRepo) Create(_ context.Context, _ int64, doc *domain.ExpenseDocument) error {
 	doc.ID = int64(len(m.docs)) + 1
 	m.docs = append(m.docs, *doc)
 	return nil
 }
-func (m *fakturoidMockDocumentRepo) GetByID(_ context.Context, _ int64) (*domain.ExpenseDocument, error) {
+func (m *fakturoidMockDocumentRepo) GetByID(_ context.Context, _, _ int64) (*domain.ExpenseDocument, error) {
 	return nil, nil
 }
-func (m *fakturoidMockDocumentRepo) ListByExpenseID(_ context.Context, _ int64) ([]domain.ExpenseDocument, error) {
+func (m *fakturoidMockDocumentRepo) ListByExpenseID(_ context.Context, _, _ int64) ([]domain.ExpenseDocument, error) {
 	return nil, nil
 }
-func (m *fakturoidMockDocumentRepo) Delete(_ context.Context, _ int64) error { return nil }
-func (m *fakturoidMockDocumentRepo) CountByExpenseID(_ context.Context, _ int64) (int, error) {
+func (m *fakturoidMockDocumentRepo) Delete(_ context.Context, _, _ int64) error { return nil }
+func (m *fakturoidMockDocumentRepo) CountByExpenseID(_ context.Context, _, _ int64) (int, error) {
 	return m.count, nil
 }
 
@@ -702,19 +706,19 @@ type fakturoidMockInvDocumentRepo struct {
 	count int
 }
 
-func (m *fakturoidMockInvDocumentRepo) Create(_ context.Context, doc *domain.InvoiceDocument) error {
+func (m *fakturoidMockInvDocumentRepo) Create(_ context.Context, _ int64, doc *domain.InvoiceDocument) error {
 	doc.ID = int64(len(m.docs)) + 1
 	m.docs = append(m.docs, *doc)
 	return nil
 }
-func (m *fakturoidMockInvDocumentRepo) GetByID(_ context.Context, _ int64) (*domain.InvoiceDocument, error) {
+func (m *fakturoidMockInvDocumentRepo) GetByID(_ context.Context, _, _ int64) (*domain.InvoiceDocument, error) {
 	return nil, nil
 }
-func (m *fakturoidMockInvDocumentRepo) ListByInvoiceID(_ context.Context, _ int64) ([]domain.InvoiceDocument, error) {
+func (m *fakturoidMockInvDocumentRepo) ListByInvoiceID(_ context.Context, _, _ int64) ([]domain.InvoiceDocument, error) {
 	return nil, nil
 }
-func (m *fakturoidMockInvDocumentRepo) Delete(_ context.Context, _ int64) error { return nil }
-func (m *fakturoidMockInvDocumentRepo) CountByInvoiceID(_ context.Context, _ int64) (int, error) {
+func (m *fakturoidMockInvDocumentRepo) Delete(_ context.Context, _, _ int64) error { return nil }
+func (m *fakturoidMockInvDocumentRepo) CountByInvoiceID(_ context.Context, _, _ int64) (int, error) {
 	return m.count, nil
 }
 

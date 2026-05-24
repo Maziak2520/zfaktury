@@ -67,7 +67,7 @@ func TestInvoiceService_Create_Valid(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -87,7 +87,7 @@ func TestInvoiceService_Create_NoCustomer(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeInvoice(0)
-	err := svc.Create(ctx, inv)
+	err := svc.Create(ctx, 1, inv)
 	if err == nil {
 		t.Error("expected error for missing customer")
 	}
@@ -98,7 +98,7 @@ func TestInvoiceService_Create_CustomerNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeInvoice(99999)
-	err := svc.Create(ctx, inv)
+	err := svc.Create(ctx, 1, inv)
 	if err == nil {
 		t.Error("expected error for non-existent customer")
 	}
@@ -113,7 +113,7 @@ func TestInvoiceService_Create_NoItems(t *testing.T) {
 		CustomerID: customerID,
 		Items:      nil,
 	}
-	err := svc.Create(ctx, inv)
+	err := svc.Create(ctx, 1, inv)
 	if err == nil {
 		t.Error("expected error for empty items")
 	}
@@ -125,12 +125,12 @@ func TestInvoiceService_Update_Valid(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	inv.Notes = "Updated notes"
-	if err := svc.Update(ctx, inv); err != nil {
+	if err := svc.Update(ctx, 1, inv); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 }
@@ -141,18 +141,18 @@ func TestInvoiceService_Update_PaidInvoice(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	// Mark as paid.
-	if err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, time.Now()); err != nil {
+	if err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, time.Now()); err != nil {
 		t.Fatalf("MarkAsPaid() error: %v", err)
 	}
 
 	// Try to update -- should fail.
 	inv.Notes = "Can't do this"
-	err := svc.Update(ctx, inv)
+	err := svc.Update(ctx, 1, inv)
 	if err == nil {
 		t.Error("expected error when updating paid invoice")
 	}
@@ -167,15 +167,15 @@ func TestInvoiceService_Delete_PaidInvoice(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, time.Now()); err != nil {
+	if err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, time.Now()); err != nil {
 		t.Fatalf("MarkAsPaid() error: %v", err)
 	}
 
-	err := svc.Delete(ctx, inv.ID)
+	err := svc.Delete(ctx, 1, inv.ID)
 	if err == nil {
 		t.Error("expected error when deleting paid invoice")
 	}
@@ -187,16 +187,16 @@ func TestInvoiceService_MarkAsSent_DraftOnly(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.MarkAsSent(ctx, inv.ID); err != nil {
+	if err := svc.MarkAsSent(ctx, 1, inv.ID); err != nil {
 		t.Fatalf("MarkAsSent() error: %v", err)
 	}
 
 	// Try to mark as sent again -- should fail (already sent, not draft).
-	err := svc.MarkAsSent(ctx, inv.ID)
+	err := svc.MarkAsSent(ctx, 1, inv.ID)
 	if err == nil {
 		t.Error("expected error when marking non-draft invoice as sent")
 	}
@@ -208,15 +208,15 @@ func TestInvoiceService_MarkAsPaid_AlreadyPaid(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, time.Now()); err != nil {
+	if err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, time.Now()); err != nil {
 		t.Fatalf("MarkAsPaid() error: %v", err)
 	}
 
-	err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, time.Now())
+	err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, time.Now())
 	if err == nil {
 		t.Error("expected error when marking already-paid invoice as paid")
 	}
@@ -228,16 +228,16 @@ func TestInvoiceService_MarkAsPaid_CancelledInvoice(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	// Set status to cancelled directly.
-	if err := invoiceRepo.UpdateStatus(ctx, inv.ID, domain.InvoiceStatusCancelled); err != nil {
+	if err := invoiceRepo.UpdateStatus(ctx, 1, inv.ID, domain.InvoiceStatusCancelled); err != nil {
 		t.Fatalf("UpdateStatus() error: %v", err)
 	}
 
-	err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, time.Now())
+	err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, time.Now())
 	if err == nil {
 		t.Error("expected error when paying cancelled invoice")
 	}
@@ -251,11 +251,11 @@ func TestInvoiceService_Duplicate(t *testing.T) {
 	original := makeInvoice(customerID)
 	original.InvoiceNumber = "FV-ORIG"
 	original.Notes = "Original notes"
-	if err := svc.Create(ctx, original); err != nil {
+	if err := svc.Create(ctx, 1, original); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	dup, err := svc.Duplicate(ctx, original.ID)
+	dup, err := svc.Duplicate(ctx, 1, original.ID)
 	if err != nil {
 		t.Fatalf("Duplicate() error: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestInvoiceService_Duplicate_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.Duplicate(ctx, 0)
+	_, err := svc.Duplicate(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -295,12 +295,12 @@ func TestInvoiceService_List_DefaultLimit(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		inv := makeInvoice(customerID)
 		inv.InvoiceNumber = "FV-LIST-" + string(rune('A'+i))
-		if err := svc.Create(ctx, inv); err != nil {
+		if err := svc.Create(ctx, 1, inv); err != nil {
 			t.Fatalf("Create() error: %v", err)
 		}
 	}
 
-	invoices, total, err := svc.List(ctx, domain.InvoiceFilter{})
+	invoices, total, err := svc.List(ctx, 1, domain.InvoiceFilter{})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestInvoiceService_Create_NoDueDate(t *testing.T) {
 	inv := makeInvoice(customerID)
 	inv.DueDate = time.Time{} // zero value
 
-	err := svc.Create(ctx, inv)
+	err := svc.Create(ctx, 1, inv)
 	if err == nil {
 		t.Fatal("expected error for missing due date, got nil")
 	}
@@ -335,13 +335,13 @@ func TestInvoiceService_Update_NoDueDate(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	inv.DueDate = time.Time{} // zero value
 
-	err := svc.Update(ctx, inv)
+	err := svc.Update(ctx, 1, inv)
 	if err == nil {
 		t.Fatal("expected error for missing due date, got nil")
 	}
@@ -354,7 +354,7 @@ func TestInvoiceService_GetByID_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 0)
+	_, err := svc.GetByID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -367,7 +367,7 @@ func TestInvoiceService_GetByID_NotFound(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 99999)
+	_, err := svc.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent invoice")
 	}
@@ -379,11 +379,11 @@ func TestInvoiceService_GetByID_Valid(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, inv.ID)
+	got, err := svc.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestInvoiceService_Delete_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 0)
+	err := svc.Delete(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -412,7 +412,7 @@ func TestInvoiceService_Delete_NotFound(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 99999)
+	err := svc.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent invoice")
 	}
@@ -424,16 +424,16 @@ func TestInvoiceService_Delete_DraftInvoice(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.Delete(ctx, inv.ID); err != nil {
+	if err := svc.Delete(ctx, 1, inv.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
 	// Verify it's gone.
-	_, err := svc.GetByID(ctx, inv.ID)
+	_, err := svc.GetByID(ctx, 1, inv.ID)
 	if err == nil {
 		t.Error("expected error after deleting invoice")
 	}
@@ -443,7 +443,7 @@ func TestInvoiceService_SettleProforma_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.SettleProforma(ctx, 0)
+	_, err := svc.SettleProforma(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -456,11 +456,11 @@ func TestInvoiceService_SettleProforma_NotProforma(t *testing.T) {
 
 	// Create a regular invoice (not proforma).
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	_, err := svc.SettleProforma(ctx, inv.ID)
+	_, err := svc.SettleProforma(ctx, 1, inv.ID)
 	if err == nil {
 		t.Error("expected error for non-proforma invoice")
 	}
@@ -479,11 +479,11 @@ func TestInvoiceService_SettleProforma_UnpaidProforma(t *testing.T) {
 	proforma.Type = domain.InvoiceTypeProforma
 	proforma.SequenceID = 0
 	proforma.InvoiceNumber = ""
-	if err := svc.Create(ctx, proforma); err != nil {
+	if err := svc.Create(ctx, 1, proforma); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	_, err := svc.SettleProforma(ctx, proforma.ID)
+	_, err := svc.SettleProforma(ctx, 1, proforma.ID)
 	if err == nil {
 		t.Error("expected error for unpaid proforma")
 	}
@@ -501,16 +501,16 @@ func TestInvoiceService_SettleProforma_Valid(t *testing.T) {
 	proforma := makeInvoice(customerID)
 	proforma.Type = domain.InvoiceTypeProforma
 	proforma.InvoiceNumber = "ZF20260001"
-	if err := svc.Create(ctx, proforma); err != nil {
+	if err := svc.Create(ctx, 1, proforma); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.MarkAsPaid(ctx, proforma.ID, proforma.TotalAmount, time.Now()); err != nil {
+	if err := svc.MarkAsPaid(ctx, 1, proforma.ID, proforma.TotalAmount, time.Now()); err != nil {
 		t.Fatalf("MarkAsPaid() error: %v", err)
 	}
 
 	// Settle the proforma.
-	settlement, err := svc.SettleProforma(ctx, proforma.ID)
+	settlement, err := svc.SettleProforma(ctx, 1, proforma.ID)
 	if err != nil {
 		t.Fatalf("SettleProforma() error: %v", err)
 	}
@@ -547,19 +547,19 @@ func TestInvoiceService_SettleProforma_Idempotent(t *testing.T) {
 	proforma := makeInvoice(customerID)
 	proforma.Type = domain.InvoiceTypeProforma
 	proforma.InvoiceNumber = "ZF20260002"
-	if err := svc.Create(ctx, proforma); err != nil {
+	if err := svc.Create(ctx, 1, proforma); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
-	if err := svc.MarkAsPaid(ctx, proforma.ID, proforma.TotalAmount, time.Now()); err != nil {
+	if err := svc.MarkAsPaid(ctx, 1, proforma.ID, proforma.TotalAmount, time.Now()); err != nil {
 		t.Fatalf("MarkAsPaid() error: %v", err)
 	}
 
 	// Settle twice.
-	first, err := svc.SettleProforma(ctx, proforma.ID)
+	first, err := svc.SettleProforma(ctx, 1, proforma.ID)
 	if err != nil {
 		t.Fatalf("first SettleProforma() error: %v", err)
 	}
-	second, err := svc.SettleProforma(ctx, proforma.ID)
+	second, err := svc.SettleProforma(ctx, 1, proforma.ID)
 	if err != nil {
 		t.Fatalf("second SettleProforma() error: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestInvoiceService_CreateCreditNote_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.CreateCreditNote(ctx, 0, nil, "reason")
+	_, err := svc.CreateCreditNote(ctx, 1, 0, nil, "reason")
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -588,11 +588,11 @@ func TestInvoiceService_CreateCreditNote_NotRegular(t *testing.T) {
 	proforma := makeInvoice(customerID)
 	proforma.Type = domain.InvoiceTypeProforma
 	proforma.InvoiceNumber = "ZF20260003"
-	if err := svc.Create(ctx, proforma); err != nil {
+	if err := svc.Create(ctx, 1, proforma); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	_, err := svc.CreateCreditNote(ctx, proforma.ID, nil, "reason")
+	_, err := svc.CreateCreditNote(ctx, 1, proforma.ID, nil, "reason")
 	if err == nil {
 		t.Error("expected error for non-regular invoice")
 	}
@@ -608,11 +608,11 @@ func TestInvoiceService_CreateCreditNote_DraftInvoice(t *testing.T) {
 
 	// Create a draft regular invoice.
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	_, err := svc.CreateCreditNote(ctx, inv.ID, nil, "reason")
+	_, err := svc.CreateCreditNote(ctx, 1, inv.ID, nil, "reason")
 	if err == nil {
 		t.Error("expected error for draft invoice")
 	}
@@ -628,15 +628,15 @@ func TestInvoiceService_CreateCreditNote_FullCreditNote(t *testing.T) {
 
 	// Create and send a regular invoice.
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
-	if err := svc.MarkAsSent(ctx, inv.ID); err != nil {
+	if err := svc.MarkAsSent(ctx, 1, inv.ID); err != nil {
 		t.Fatalf("MarkAsSent() error: %v", err)
 	}
 
 	// Create full credit note (no items provided).
-	cn, err := svc.CreateCreditNote(ctx, inv.ID, nil, "full refund")
+	cn, err := svc.CreateCreditNote(ctx, 1, inv.ID, nil, "full refund")
 	if err != nil {
 		t.Fatalf("CreateCreditNote() error: %v", err)
 	}
@@ -672,10 +672,10 @@ func TestInvoiceService_CreateCreditNote_PartialCreditNote(t *testing.T) {
 
 	// Create, send, and pay a regular invoice.
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
-	if err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, time.Now()); err != nil {
+	if err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, time.Now()); err != nil {
 		t.Fatalf("MarkAsPaid() error: %v", err)
 	}
 
@@ -689,7 +689,7 @@ func TestInvoiceService_CreateCreditNote_PartialCreditNote(t *testing.T) {
 			VATRatePercent: 21,
 		},
 	}
-	cn, err := svc.CreateCreditNote(ctx, inv.ID, partialItems, "partial refund")
+	cn, err := svc.CreateCreditNote(ctx, 1, inv.ID, partialItems, "partial refund")
 	if err != nil {
 		t.Fatalf("CreateCreditNote() error: %v", err)
 	}
@@ -712,11 +712,11 @@ func TestInvoiceService_GetRelatedInvoices_Empty(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	related, err := svc.GetRelatedInvoices(ctx, inv.ID)
+	related, err := svc.GetRelatedInvoices(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetRelatedInvoices() error: %v", err)
 	}
@@ -732,20 +732,20 @@ func TestInvoiceService_GetRelatedInvoices_WithCreditNote(t *testing.T) {
 
 	// Create and send a regular invoice.
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
-	if err := svc.MarkAsSent(ctx, inv.ID); err != nil {
+	if err := svc.MarkAsSent(ctx, 1, inv.ID); err != nil {
 		t.Fatalf("MarkAsSent() error: %v", err)
 	}
 
 	// Create a credit note for it.
-	_, err := svc.CreateCreditNote(ctx, inv.ID, nil, "refund")
+	_, err := svc.CreateCreditNote(ctx, 1, inv.ID, nil, "refund")
 	if err != nil {
 		t.Fatalf("CreateCreditNote() error: %v", err)
 	}
 
-	related, err := svc.GetRelatedInvoices(ctx, inv.ID)
+	related, err := svc.GetRelatedInvoices(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetRelatedInvoices() error: %v", err)
 	}
@@ -761,7 +761,7 @@ func TestInvoiceService_MarkAsSent_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	err := svc.MarkAsSent(ctx, 0)
+	err := svc.MarkAsSent(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -771,7 +771,7 @@ func TestInvoiceService_MarkAsPaid_ZeroID(t *testing.T) {
 	svc, _, _, _, _ := newInvoiceTestStack(t)
 	ctx := context.Background()
 
-	err := svc.MarkAsPaid(ctx, 0, 100, time.Now())
+	err := svc.MarkAsPaid(ctx, 1, 0, 100, time.Now())
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -783,7 +783,7 @@ func TestInvoiceService_Update_PreservesInvoiceNumber(t *testing.T) {
 	customerID := createCustomer()
 
 	inv := makeInvoice(customerID)
-	if err := svc.Create(ctx, inv); err != nil {
+	if err := svc.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -799,11 +799,11 @@ func TestInvoiceService_Update_PreservesInvoiceNumber(t *testing.T) {
 	inv.Type = ""
 	inv.Notes = "Updated"
 
-	if err := svc.Update(ctx, inv); err != nil {
+	if err := svc.Update(ctx, 1, inv); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	updated, err := svc.GetByID(ctx, inv.ID)
+	updated, err := svc.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}

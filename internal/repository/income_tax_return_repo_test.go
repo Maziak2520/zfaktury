@@ -236,7 +236,7 @@ func TestIncomeTaxReturnRepository_LinkInvoices(t *testing.T) {
 
 	// Create a contact and invoice for linking.
 	contact := testutil.SeedContact(t, db, 1, nil)
-	inv := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Test", Quantity: 100, Unit: "ks", UnitPrice: 10000, VATRatePercent: 21},
 	})
 
@@ -279,8 +279,8 @@ func TestIncomeTaxReturnRepository_LinkExpenses(t *testing.T) {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	exp1 := testutil.SeedExpense(t, db, &domain.Expense{Description: "Expense 1"})
-	exp2 := testutil.SeedExpense(t, db, &domain.Expense{Description: "Expense 2"})
+	exp1 := testutil.SeedExpense(t, db, 1, &domain.Expense{Description: "Expense 1"})
+	exp2 := testutil.SeedExpense(t, db, 1, &domain.Expense{Description: "Expense 2"})
 
 	if err := repo.LinkExpenses(ctx, itr.ID, []int64{exp1.ID, exp2.ID}); err != nil {
 		t.Fatalf("LinkExpenses() error: %v", err)

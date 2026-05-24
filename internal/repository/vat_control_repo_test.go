@@ -416,7 +416,7 @@ func TestVATControlStatementRepository_CreateLines_WithInvoiceID(t *testing.T) {
 
 	// Seed a contact and invoice for the foreign key.
 	contact := testutil.SeedContact(t, db, 1, nil)
-	inv := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Service", Quantity: 100, Unit: "ks", UnitPrice: 10000, VATRatePercent: 21},
 	})
 
@@ -492,7 +492,7 @@ func TestVATControlStatementRepository_CreateLines_WithExpenseID(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed an expense for the foreign key.
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 
 	cs := &domain.VATControlStatement{
 		Period: domain.TaxPeriod{

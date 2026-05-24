@@ -138,9 +138,10 @@ func SeedContact(t *testing.T, db *sql.DB, companyID int64, c *domain.Contact) *
 	return c
 }
 
-// SeedInvoice inserts an invoice with items into the database.
+// SeedInvoice inserts an invoice with items into the database under the given company.
 // A customer contact must already exist. Returns the invoice with assigned IDs.
-func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.InvoiceItem) *domain.Invoice {
+// Pass companyID=1 for the default company seeded by NewTestDB.
+func SeedInvoice(t *testing.T, db *sql.DB, companyID int64, customerID int64, items []domain.InvoiceItem) *domain.Invoice {
 	t.Helper()
 
 	now := time.Now()
@@ -169,9 +170,6 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 		seqID = inv.SequenceID
 	}
 
-	// Default to company id=1 (the company seeded by NewTestDB). A future task
-	// may widen this to accept an explicit companyID once multi-company tests
-	// arrive; for now every fixture invoice lives in the default company.
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO invoices (
 			company_id,
@@ -183,7 +181,7 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 			notes, internal_notes, sent_at, paid_at,
 			created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		1,
+		companyID,
 		seqID, inv.InvoiceNumber, inv.Type, inv.Status,
 		inv.IssueDate.Format("2006-01-02"), inv.DueDate.Format("2006-01-02"), inv.DeliveryDate.Format("2006-01-02"), inv.VariableSymbol, inv.ConstantSymbol,
 		inv.CustomerID, inv.CurrencyCode, inv.ExchangeRate,
@@ -206,16 +204,16 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 		item := &inv.Items[i]
 		item.InvoiceID = invoiceID
 
-		// company_id matches the parent invoice (default company id=1) so the
-		// composite FK (company_id, invoice_id) -> invoices(company_id, id)
-		// resolves; mismatched values are rejected by migration 025's FK.
+		// company_id matches the parent invoice so the composite FK
+		// (company_id, invoice_id) -> invoices(company_id, id) resolves;
+		// mismatched values are rejected by migration 025's FK.
 		itemResult, err := db.ExecContext(context.Background(), `
 			INSERT INTO invoice_items (
 				company_id,
 				invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, vat_amount, total_amount, sort_order
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			1,
+			companyID,
 			item.InvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.VATAmount, item.TotalAmount, item.SortOrder,
 		)
@@ -232,9 +230,10 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 	return inv
 }
 
-// SeedExpense inserts an expense into the database with sensible defaults.
+// SeedExpense inserts an expense into the database under the given company with sensible defaults.
 // Fields from the provided expense override defaults.
-func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
+// Pass companyID=1 for the default company seeded by NewTestDB.
+func SeedExpense(t *testing.T, db *sql.DB, companyID int64, e *domain.Expense) *domain.Expense {
 	t.Helper()
 
 	if e == nil {
@@ -263,9 +262,6 @@ func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
 	e.CreatedAt = now
 	e.UpdatedAt = now
 
-	// Default to company id=1 (the company seeded by NewTestDB). A future task
-	// may widen this to accept an explicit companyID once multi-company tests
-	// arrive; for now every fixture expense lives in the default company.
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO expenses (
 			company_id,
@@ -276,7 +272,7 @@ func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
 			document_path, notes,
 			created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		1,
+		companyID,
 		e.VendorID, e.ExpenseNumber, e.Category, e.Description,
 		e.IssueDate.Format("2006-01-02"), e.Amount, e.CurrencyCode, e.ExchangeRate,
 		e.VATRatePercent, e.VATAmount,

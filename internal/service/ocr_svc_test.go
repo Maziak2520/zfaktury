@@ -50,12 +50,12 @@ func TestOCRService_ProcessDocument_Success(t *testing.T) {
 
 	// Upload a valid document first.
 	data := bytes.NewReader(pdfMagic)
-	doc, err := docSvc.Upload(ctx, 1, "receipt.pdf", "application/pdf", data)
+	doc, err := docSvc.Upload(ctx, 1, 1, "receipt.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	result, err := ocrSvc.ProcessDocument(ctx, doc.ID)
+	result, err := ocrSvc.ProcessDocument(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("ProcessDocument() error: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestOCRService_ProcessDocument_ZeroID(t *testing.T) {
 	provider := &mockOCRProvider{}
 	ocrSvc, _ := newOCRTestService(t, provider)
 
-	_, err := ocrSvc.ProcessDocument(context.Background(), 0)
+	_, err := ocrSvc.ProcessDocument(context.Background(), 1, 0)
 	if err == nil {
 		t.Error("expected error for zero document ID")
 	}
@@ -81,7 +81,7 @@ func TestOCRService_ProcessDocument_NotFound(t *testing.T) {
 	provider := &mockOCRProvider{}
 	ocrSvc, _ := newOCRTestService(t, provider)
 
-	_, err := ocrSvc.ProcessDocument(context.Background(), 99999)
+	_, err := ocrSvc.ProcessDocument(context.Background(), 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent document")
 	}
@@ -94,12 +94,12 @@ func TestOCRService_ProcessDocument_UnsupportedContentType(t *testing.T) {
 
 	// Upload a webp file (supported for upload but not for OCR).
 	data := bytes.NewReader(webpMagic)
-	doc, err := docSvc.Upload(ctx, 1, "photo.webp", "image/webp", data)
+	doc, err := docSvc.Upload(ctx, 1, 1, "photo.webp", "image/webp", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	_, err = ocrSvc.ProcessDocument(ctx, doc.ID)
+	_, err = ocrSvc.ProcessDocument(ctx, 1, doc.ID)
 	if err == nil {
 		t.Error("expected error for unsupported content type")
 	}
@@ -111,12 +111,12 @@ func TestOCRService_ProcessDocument_ProviderError(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(jpegMagic)
-	doc, err := docSvc.Upload(ctx, 1, "photo.jpg", "image/jpeg", data)
+	doc, err := docSvc.Upload(ctx, 1, 1, "photo.jpg", "image/jpeg", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	_, err = ocrSvc.ProcessDocument(ctx, doc.ID)
+	_, err = ocrSvc.ProcessDocument(ctx, 1, doc.ID)
 	if err == nil {
 		t.Error("expected error when provider fails")
 	}
@@ -132,12 +132,12 @@ func TestOCRService_ProcessDocument_JPEG(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(jpegMagic)
-	doc, err := docSvc.Upload(ctx, 1, "scan.jpg", "image/jpeg", data)
+	doc, err := docSvc.Upload(ctx, 1, 1, "scan.jpg", "image/jpeg", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	result, err := ocrSvc.ProcessDocument(ctx, doc.ID)
+	result, err := ocrSvc.ProcessDocument(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("ProcessDocument() error: %v", err)
 	}
@@ -156,12 +156,12 @@ func TestOCRService_ProcessDocument_PNG(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pngMagic)
-	doc, err := docSvc.Upload(ctx, 1, "scan.png", "image/png", data)
+	doc, err := docSvc.Upload(ctx, 1, 1, "scan.png", "image/png", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	result, err := ocrSvc.ProcessDocument(ctx, doc.ID)
+	result, err := ocrSvc.ProcessDocument(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("ProcessDocument() error: %v", err)
 	}

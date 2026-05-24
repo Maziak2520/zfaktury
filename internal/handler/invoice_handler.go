@@ -56,8 +56,14 @@ func (h *InvoiceHandler) Routes() chi.Router {
 	return r
 }
 
-// Create handles POST /api/v1/invoices.
+// Create handles POST /api/v1/companies/{companyID}/invoices.
 func (h *InvoiceHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req invoiceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -70,7 +76,7 @@ func (h *InvoiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.Create(r.Context(), invoice); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, invoice); err != nil {
 		slog.Error("failed to create invoice", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -79,8 +85,14 @@ func (h *InvoiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, invoiceFromDomain(invoice))
 }
 
-// List handles GET /api/v1/invoices.
+// List handles GET /api/v1/companies/{companyID}/invoices.
 func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	limit, offset := parsePagination(r)
 
 	// Validate filter values against allowlists.
@@ -110,7 +122,7 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 		Offset:     offset,
 	}
 
-	invoices, total, err := h.svc.List(r.Context(), filter)
+	invoices, total, err := h.svc.List(r.Context(), company.ID, filter)
 	if err != nil {
 		slog.Error("failed to list invoices", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list invoices")
@@ -130,15 +142,21 @@ func (h *InvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetByID handles GET /api/v1/invoices/{id}.
+// GetByID handles GET /api/v1/companies/{companyID}/invoices/{id}.
 func (h *InvoiceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.GetByID(r.Context(), id)
+	invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "invoice not found")
@@ -149,7 +167,7 @@ func (h *InvoiceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch invoices that reference this invoice (credit notes, settlements, etc.).
 	// Exclude the invoice already shown via related_invoice_id to avoid duplicates.
-	related, err := h.svc.GetRelatedInvoices(r.Context(), id)
+	related, err := h.svc.GetRelatedInvoices(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get related invoices", "error", err, "id", id)
 		// Non-critical, continue without related invoices.
@@ -170,8 +188,14 @@ func (h *InvoiceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, resp)
 }
 
-// Update handles PUT /api/v1/invoices/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/invoices/{id}.
 func (h *InvoiceHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
@@ -191,13 +215,13 @@ func (h *InvoiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	invoice.ID = id
 
-	if err := h.svc.Update(r.Context(), invoice); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, invoice); err != nil {
 		slog.Error("failed to update invoice", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
-	updated, err := h.svc.GetByID(r.Context(), id)
+	updated, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch updated invoice")
 		return
@@ -206,15 +230,21 @@ func (h *InvoiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, invoiceFromDomain(updated))
 }
 
-// Delete handles DELETE /api/v1/invoices/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/invoices/{id}.
 func (h *InvoiceHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete invoice", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, err.Error())
 		return
@@ -223,22 +253,28 @@ func (h *InvoiceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// MarkAsSent handles POST /api/v1/invoices/{id}/send.
+// MarkAsSent handles POST /api/v1/companies/{companyID}/invoices/{id}/send.
 func (h *InvoiceHandler) MarkAsSent(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	if err := h.svc.MarkAsSent(r.Context(), id); err != nil {
+	if err := h.svc.MarkAsSent(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to mark invoice as sent", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
 	// Return the updated invoice.
-	invoice, err := h.svc.GetByID(r.Context(), id)
+	invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch updated invoice")
 		return
@@ -247,8 +283,14 @@ func (h *InvoiceHandler) MarkAsSent(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, invoiceFromDomain(invoice))
 }
 
-// MarkAsPaid handles POST /api/v1/invoices/{id}/mark-paid.
+// MarkAsPaid handles POST /api/v1/companies/{companyID}/invoices/{id}/mark-paid.
 func (h *InvoiceHandler) MarkAsPaid(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
@@ -275,14 +317,14 @@ func (h *InvoiceHandler) MarkAsPaid(w http.ResponseWriter, r *http.Request) {
 		paidAt = parsed
 	}
 
-	if err := h.svc.MarkAsPaid(r.Context(), id, domain.Amount(req.Amount), paidAt); err != nil {
+	if err := h.svc.MarkAsPaid(r.Context(), company.ID, id, domain.Amount(req.Amount), paidAt); err != nil {
 		slog.Error("failed to mark invoice as paid", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
 	// Return the updated invoice.
-	invoice, err := h.svc.GetByID(r.Context(), id)
+	invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch updated invoice")
 		return
@@ -291,15 +333,21 @@ func (h *InvoiceHandler) MarkAsPaid(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, invoiceFromDomain(invoice))
 }
 
-// Duplicate handles POST /api/v1/invoices/{id}/duplicate.
+// Duplicate handles POST /api/v1/companies/{companyID}/invoices/{id}/duplicate.
 func (h *InvoiceHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.Duplicate(r.Context(), id)
+	invoice, err := h.svc.Duplicate(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to duplicate invoice", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
@@ -309,16 +357,22 @@ func (h *InvoiceHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, invoiceFromDomain(invoice))
 }
 
-// SettleProforma handles POST /api/v1/invoices/{id}/settle.
+// SettleProforma handles POST /api/v1/companies/{companyID}/invoices/{id}/settle.
 // Creates a regular settlement invoice from a paid proforma.
 func (h *InvoiceHandler) SettleProforma(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.SettleProforma(r.Context(), id)
+	invoice, err := h.svc.SettleProforma(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to settle proforma", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
@@ -334,8 +388,14 @@ type creditNoteRequest struct {
 	Reason string               `json:"reason"`
 }
 
-// CreateCreditNote handles POST /api/v1/invoices/{id}/credit-note.
+// CreateCreditNote handles POST /api/v1/companies/{companyID}/invoices/{id}/credit-note.
 func (h *InvoiceHandler) CreateCreditNote(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
@@ -361,7 +421,7 @@ func (h *InvoiceHandler) CreateCreditNote(w http.ResponseWriter, r *http.Request
 		})
 	}
 
-	invoice, err := h.svc.CreateCreditNote(r.Context(), id, items, req.Reason)
+	invoice, err := h.svc.CreateCreditNote(r.Context(), company.ID, id, items, req.Reason)
 	if err != nil {
 		slog.Error("failed to create credit note", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
@@ -371,15 +431,21 @@ func (h *InvoiceHandler) CreateCreditNote(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusCreated, invoiceFromDomain(invoice))
 }
 
-// DownloadPDF handles GET /api/v1/invoices/{id}/pdf.
+// DownloadPDF handles GET /api/v1/companies/{companyID}/invoices/{id}/pdf.
 func (h *InvoiceHandler) DownloadPDF(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.GetByID(r.Context(), id)
+	invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice for PDF", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "invoice not found")
@@ -415,15 +481,21 @@ func (h *InvoiceHandler) DownloadPDF(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(pdfBytes)
 }
 
-// QRPayment handles GET /api/v1/invoices/{id}/qr.
+// QRPayment handles GET /api/v1/companies/{companyID}/invoices/{id}/qr.
 func (h *InvoiceHandler) QRPayment(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.GetByID(r.Context(), id)
+	invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice for QR", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "invoice not found")
@@ -525,15 +597,21 @@ func (h *InvoiceHandler) loadSupplierInfo(r *http.Request) (isdoc.SupplierInfo, 
 	}, nil
 }
 
-// ExportISDOC handles GET /api/v1/invoices/{id}/isdoc.
+// ExportISDOC handles GET /api/v1/companies/{companyID}/invoices/{id}/isdoc.
 func (h *InvoiceHandler) ExportISDOC(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.GetByID(r.Context(), id)
+	invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice for ISDOC export", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "invoice not found")
@@ -566,8 +644,14 @@ type isdocBatchRequest struct {
 	InvoiceIDs []int64 `json:"invoice_ids"`
 }
 
-// ExportISDOCBatch handles POST /api/v1/invoices/export/isdoc.
+// ExportISDOCBatch handles POST /api/v1/companies/{companyID}/invoices/export/isdoc.
 func (h *InvoiceHandler) ExportISDOCBatch(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req isdocBatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -596,7 +680,7 @@ func (h *InvoiceHandler) ExportISDOCBatch(w http.ResponseWriter, r *http.Request
 	zipWriter := zip.NewWriter(&buf)
 
 	for _, id := range req.InvoiceIDs {
-		invoice, err := h.svc.GetByID(r.Context(), id)
+		invoice, err := h.svc.GetByID(r.Context(), company.ID, id)
 		if err != nil {
 			slog.Error("failed to get invoice for batch ISDOC export", "error", err, "id", id)
 			continue

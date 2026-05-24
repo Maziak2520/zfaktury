@@ -16,14 +16,14 @@ type mockReminderRepo struct {
 	reminders []domain.PaymentReminder
 }
 
-func (m *mockReminderRepo) Create(_ context.Context, r *domain.PaymentReminder) error {
+func (m *mockReminderRepo) Create(_ context.Context, _ int64, r *domain.PaymentReminder) error {
 	r.ID = int64(len(m.reminders) + 1)
 	r.CreatedAt = time.Now()
 	m.reminders = append(m.reminders, *r)
 	return nil
 }
 
-func (m *mockReminderRepo) ListByInvoiceID(_ context.Context, invoiceID int64) ([]domain.PaymentReminder, error) {
+func (m *mockReminderRepo) ListByInvoiceID(_ context.Context, _, invoiceID int64) ([]domain.PaymentReminder, error) {
 	var result []domain.PaymentReminder
 	for _, r := range m.reminders {
 		if r.InvoiceID == invoiceID {
@@ -33,7 +33,7 @@ func (m *mockReminderRepo) ListByInvoiceID(_ context.Context, invoiceID int64) (
 	return result, nil
 }
 
-func (m *mockReminderRepo) CountByInvoiceID(_ context.Context, invoiceID int64) (int, error) {
+func (m *mockReminderRepo) CountByInvoiceID(_ context.Context, _, invoiceID int64) (int, error) {
 	count := 0
 	for _, r := range m.reminders {
 		if r.InvoiceID == invoiceID {
@@ -49,7 +49,7 @@ type mockInvoiceRepo struct {
 	err     error
 }
 
-func (m *mockInvoiceRepo) GetByID(_ context.Context, _ int64) (*domain.Invoice, error) {
+func (m *mockInvoiceRepo) GetByID(_ context.Context, _, _ int64) (*domain.Invoice, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -109,7 +109,7 @@ func TestReminderService_SendReminder_Success(t *testing.T) {
 	svc := NewReminderService(reminderRepo, invoiceRepo, emailSender, &mockSettingsReader{settings: map[string]string{"company_name": "Jan Novak"}})
 	ctx := context.Background()
 
-	rem, err := svc.SendReminder(ctx, 1)
+	rem, err := svc.SendReminder(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("SendReminder() error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestReminderService_SendReminder_EscalatesLevel(t *testing.T) {
 	ctx := context.Background()
 
 	// First reminder: level 1.
-	rem1, err := svc.SendReminder(ctx, 1)
+	rem1, err := svc.SendReminder(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("first SendReminder() error: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestReminderService_SendReminder_EscalatesLevel(t *testing.T) {
 	}
 
 	// Second reminder: level 2.
-	rem2, err := svc.SendReminder(ctx, 1)
+	rem2, err := svc.SendReminder(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("second SendReminder() error: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestReminderService_SendReminder_EscalatesLevel(t *testing.T) {
 	}
 
 	// Third reminder: level 3.
-	rem3, err := svc.SendReminder(ctx, 1)
+	rem3, err := svc.SendReminder(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("third SendReminder() error: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestReminderService_SendReminder_EscalatesLevel(t *testing.T) {
 	}
 
 	// Fourth reminder: still level 3 (capped).
-	rem4, err := svc.SendReminder(ctx, 1)
+	rem4, err := svc.SendReminder(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("fourth SendReminder() error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestReminderService_SendReminder_NotOverdue(t *testing.T) {
 	svc := NewReminderService(reminderRepo, invoiceRepo, emailSender, &mockSettingsReader{settings: map[string]string{"company_name": "Test"}})
 	ctx := context.Background()
 
-	_, err := svc.SendReminder(ctx, 1)
+	_, err := svc.SendReminder(ctx, 1, 1)
 	if err == nil {
 		t.Fatal("expected error for non-overdue invoice")
 	}
@@ -218,7 +218,7 @@ func TestReminderService_SendReminder_NoEmail(t *testing.T) {
 	svc := NewReminderService(reminderRepo, invoiceRepo, emailSender, &mockSettingsReader{settings: map[string]string{"company_name": "Test"}})
 	ctx := context.Background()
 
-	_, err := svc.SendReminder(ctx, 1)
+	_, err := svc.SendReminder(ctx, 1, 1)
 	if err == nil {
 		t.Fatal("expected error for missing email")
 	}
@@ -236,7 +236,7 @@ func TestReminderService_SendReminder_EmailError(t *testing.T) {
 	svc := NewReminderService(reminderRepo, invoiceRepo, emailSender, &mockSettingsReader{settings: map[string]string{"company_name": "Test"}})
 	ctx := context.Background()
 
-	_, err := svc.SendReminder(ctx, 1)
+	_, err := svc.SendReminder(ctx, 1, 1)
 	if err == nil {
 		t.Fatal("expected error when email sending fails")
 	}
@@ -257,7 +257,7 @@ func TestReminderService_SendReminder_SentAndPastDue(t *testing.T) {
 	svc := NewReminderService(reminderRepo, invoiceRepo, emailSender, &mockSettingsReader{settings: map[string]string{"company_name": "Test"}})
 	ctx := context.Background()
 
-	rem, err := svc.SendReminder(ctx, 1)
+	rem, err := svc.SendReminder(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("SendReminder() error: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestReminderService_GetReminders(t *testing.T) {
 	svc := NewReminderService(reminderRepo, invoiceRepo, emailSender, &mockSettingsReader{settings: map[string]string{"company_name": "Test"}})
 	ctx := context.Background()
 
-	reminders, err := svc.GetReminders(ctx, 42)
+	reminders, err := svc.GetReminders(ctx, 1, 42)
 	if err != nil {
 		t.Fatalf("GetReminders() error: %v", err)
 	}

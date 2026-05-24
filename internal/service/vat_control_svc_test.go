@@ -110,23 +110,23 @@ type vcMockInvoiceRepo struct {
 	invoices []domain.Invoice
 }
 
-func (m *vcMockInvoiceRepo) Create(_ context.Context, _ *domain.Invoice) error { return nil }
-func (m *vcMockInvoiceRepo) Update(_ context.Context, _ *domain.Invoice) error { return nil }
-func (m *vcMockInvoiceRepo) Delete(_ context.Context, _ int64) error           { return nil }
-func (m *vcMockInvoiceRepo) UpdateStatus(_ context.Context, _ int64, _ string) error {
+func (m *vcMockInvoiceRepo) Create(_ context.Context, _ int64, _ *domain.Invoice) error { return nil }
+func (m *vcMockInvoiceRepo) Update(_ context.Context, _ int64, _ *domain.Invoice) error { return nil }
+func (m *vcMockInvoiceRepo) Delete(_ context.Context, _, _ int64) error                 { return nil }
+func (m *vcMockInvoiceRepo) UpdateStatus(_ context.Context, _, _ int64, _ string) error {
 	return nil
 }
-func (m *vcMockInvoiceRepo) GetNextNumber(_ context.Context, _ int64) (string, error) {
+func (m *vcMockInvoiceRepo) GetNextNumber(_ context.Context, _, _ int64) (string, error) {
 	return "", nil
 }
-func (m *vcMockInvoiceRepo) GetRelatedInvoices(_ context.Context, _ int64) ([]domain.Invoice, error) {
+func (m *vcMockInvoiceRepo) GetRelatedInvoices(_ context.Context, _, _ int64) ([]domain.Invoice, error) {
 	return nil, nil
 }
-func (m *vcMockInvoiceRepo) FindByRelatedInvoice(_ context.Context, _ int64, _ string) (*domain.Invoice, error) {
+func (m *vcMockInvoiceRepo) FindByRelatedInvoice(_ context.Context, _, _ int64, _ string) (*domain.Invoice, error) {
 	return nil, nil
 }
 
-func (m *vcMockInvoiceRepo) GetByID(_ context.Context, id int64) (*domain.Invoice, error) {
+func (m *vcMockInvoiceRepo) GetByID(_ context.Context, _, id int64) (*domain.Invoice, error) {
 	for _, inv := range m.invoices {
 		if inv.ID == id {
 			clone := inv
@@ -136,7 +136,7 @@ func (m *vcMockInvoiceRepo) GetByID(_ context.Context, id int64) (*domain.Invoic
 	return nil, domain.ErrNotFound
 }
 
-func (m *vcMockInvoiceRepo) List(_ context.Context, _ domain.InvoiceFilter) ([]domain.Invoice, int, error) {
+func (m *vcMockInvoiceRepo) List(_ context.Context, _ int64, _ domain.InvoiceFilter) ([]domain.Invoice, int, error) {
 	return m.invoices, len(m.invoices), nil
 }
 
@@ -144,17 +144,17 @@ type vcMockExpenseRepo struct {
 	expenses []domain.Expense
 }
 
-func (m *vcMockExpenseRepo) Create(_ context.Context, _ *domain.Expense) error { return nil }
-func (m *vcMockExpenseRepo) Update(_ context.Context, _ *domain.Expense) error { return nil }
-func (m *vcMockExpenseRepo) Delete(_ context.Context, _ int64) error           { return nil }
-func (m *vcMockExpenseRepo) MarkTaxReviewed(_ context.Context, _ []int64) error {
+func (m *vcMockExpenseRepo) Create(_ context.Context, _ int64, _ *domain.Expense) error { return nil }
+func (m *vcMockExpenseRepo) Update(_ context.Context, _ int64, _ *domain.Expense) error { return nil }
+func (m *vcMockExpenseRepo) Delete(_ context.Context, _, _ int64) error                 { return nil }
+func (m *vcMockExpenseRepo) MarkTaxReviewed(_ context.Context, _ int64, _ []int64) error {
 	return nil
 }
-func (m *vcMockExpenseRepo) UnmarkTaxReviewed(_ context.Context, _ []int64) error {
+func (m *vcMockExpenseRepo) UnmarkTaxReviewed(_ context.Context, _ int64, _ []int64) error {
 	return nil
 }
 
-func (m *vcMockExpenseRepo) GetByID(_ context.Context, id int64) (*domain.Expense, error) {
+func (m *vcMockExpenseRepo) GetByID(_ context.Context, _, id int64) (*domain.Expense, error) {
 	for _, e := range m.expenses {
 		if e.ID == id {
 			clone := e
@@ -164,7 +164,7 @@ func (m *vcMockExpenseRepo) GetByID(_ context.Context, id int64) (*domain.Expens
 	return nil, domain.ErrNotFound
 }
 
-func (m *vcMockExpenseRepo) List(_ context.Context, _ domain.ExpenseFilter) ([]domain.Expense, int, error) {
+func (m *vcMockExpenseRepo) List(_ context.Context, _ int64, _ domain.ExpenseFilter) ([]domain.Expense, int, error) {
 	return m.expenses, len(m.expenses), nil
 }
 
@@ -659,7 +659,7 @@ func TestVATControlStatementService_GenerateXML_WithLines(t *testing.T) {
 
 	// Create an invoice with delivery date in March 2025, big enough for A4.
 	march15 := time.Date(2025, 3, 15, 0, 0, 0, 0, time.UTC)
-	inv := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{
 			Description:    "Consulting",
 			Quantity:       100, // 1.00

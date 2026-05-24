@@ -20,8 +20,9 @@ func NewRecurringInvoiceRepository(db *sql.DB) *RecurringInvoiceRepository {
 	return &RecurringInvoiceRepository{db: db}
 }
 
-// Create inserts a new recurring invoice with its items in a single transaction.
-func (r *RecurringInvoiceRepository) Create(ctx context.Context, ri *domain.RecurringInvoice) error {
+// Create inserts a new recurring invoice with its items in a single transaction
+// under the given company.
+func (r *RecurringInvoiceRepository) Create(ctx context.Context, companyID int64, ri *domain.RecurringInvoice) error {
 	now := time.Now()
 	ri.CreatedAt = now
 	ri.UpdatedAt = now
@@ -39,12 +40,14 @@ func (r *RecurringInvoiceRepository) Create(ctx context.Context, ri *domain.Recu
 
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO recurring_invoices (
+			company_id,
 			name, customer_id, frequency, next_issue_date, end_date,
 			currency_code, exchange_rate, payment_method,
 			bank_account, bank_code, iban, swift,
 			constant_symbol, notes, is_active,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		ri.Name, ri.CustomerID, ri.Frequency, ri.NextIssueDate.Format("2006-01-02"), endDate,
 		ri.CurrencyCode, ri.ExchangeRate, ri.PaymentMethod,
 		ri.BankAccount, ri.BankCode, ri.IBAN, ri.SWIFT,
@@ -67,9 +70,11 @@ func (r *RecurringInvoiceRepository) Create(ctx context.Context, ri *domain.Recu
 
 		itemResult, err := tx.ExecContext(ctx, `
 			INSERT INTO recurring_invoice_items (
+				company_id,
 				recurring_invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			companyID,
 			item.RecurringInvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.SortOrder,
 		)
@@ -89,8 +94,8 @@ func (r *RecurringInvoiceRepository) Create(ctx context.Context, ri *domain.Recu
 	return nil
 }
 
-// Update modifies an existing recurring invoice and replaces its items.
-func (r *RecurringInvoiceRepository) Update(ctx context.Context, ri *domain.RecurringInvoice) error {
+// Update modifies an existing recurring invoice and replaces its items within the given company.
+func (r *RecurringInvoiceRepository) Update(ctx context.Context, companyID int64, ri *domain.RecurringInvoice) error {
 	ri.UpdatedAt = time.Now()
 
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -111,19 +116,19 @@ func (r *RecurringInvoiceRepository) Update(ctx context.Context, ri *domain.Recu
 			bank_account = ?, bank_code = ?, iban = ?, swift = ?,
 			constant_symbol = ?, notes = ?, is_active = ?,
 			updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL`,
+		WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
 		ri.Name, ri.CustomerID, ri.Frequency, ri.NextIssueDate.Format("2006-01-02"), endDate,
 		ri.CurrencyCode, ri.ExchangeRate, ri.PaymentMethod,
 		ri.BankAccount, ri.BankCode, ri.IBAN, ri.SWIFT,
 		ri.ConstantSymbol, ri.Notes, ri.IsActive,
-		ri.UpdatedAt.Format(time.RFC3339), ri.ID,
+		ri.UpdatedAt.Format(time.RFC3339), ri.ID, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating recurring invoice %d: %w", ri.ID, err)
 	}
 
 	// Delete existing items and re-insert.
-	_, err = tx.ExecContext(ctx, `DELETE FROM recurring_invoice_items WHERE recurring_invoice_id = ?`, ri.ID)
+	_, err = tx.ExecContext(ctx, `DELETE FROM recurring_invoice_items WHERE recurring_invoice_id = ? AND company_id = ?`, ri.ID, companyID)
 	if err != nil {
 		return fmt.Errorf("deleting old recurring invoice items for %d: %w", ri.ID, err)
 	}
@@ -134,9 +139,11 @@ func (r *RecurringInvoiceRepository) Update(ctx context.Context, ri *domain.Recu
 
 		itemResult, err := tx.ExecContext(ctx, `
 			INSERT INTO recurring_invoice_items (
+				company_id,
 				recurring_invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			companyID,
 			item.RecurringInvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.SortOrder,
 		)
@@ -156,13 +163,13 @@ func (r *RecurringInvoiceRepository) Update(ctx context.Context, ri *domain.Recu
 	return nil
 }
 
-// Delete performs a soft delete on a recurring invoice.
-func (r *RecurringInvoiceRepository) Delete(ctx context.Context, id int64) error {
+// Delete performs a soft delete on a recurring invoice within the given company.
+func (r *RecurringInvoiceRepository) Delete(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	nowStr := now.Format(time.RFC3339)
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE recurring_invoices SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		nowStr, nowStr, id,
+		UPDATE recurring_invoices SET deleted_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		nowStr, nowStr, id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("soft-deleting recurring invoice %d: %w", id, err)
@@ -173,13 +180,13 @@ func (r *RecurringInvoiceRepository) Delete(ctx context.Context, id int64) error
 		return fmt.Errorf("checking rows affected for recurring invoice %d: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("recurring invoice %d not found or already deleted", id)
+		return fmt.Errorf("recurring invoice %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// GetByID retrieves a recurring invoice with its items and customer data.
-func (r *RecurringInvoiceRepository) GetByID(ctx context.Context, id int64) (*domain.RecurringInvoice, error) {
+// GetByID retrieves a recurring invoice with its items and customer data within the given company.
+func (r *RecurringInvoiceRepository) GetByID(ctx context.Context, companyID, id int64) (*domain.RecurringInvoice, error) {
 	ri := &domain.RecurringInvoice{}
 	var nextIssueDateStr string
 	var endDateStr sql.NullString
@@ -203,7 +210,7 @@ func (r *RecurringInvoiceRepository) GetByID(ctx context.Context, id int64) (*do
 			c.email, c.phone, c.web
 		FROM recurring_invoices ri
 		LEFT JOIN contacts c ON c.id = ri.customer_id
-		WHERE ri.id = ? AND ri.deleted_at IS NULL`, id,
+		WHERE ri.id = ? AND ri.company_id = ? AND ri.deleted_at IS NULL`, id, companyID,
 	).Scan(
 		&ri.ID, &ri.Name, &ri.CustomerID, &ri.Frequency, &nextIssueDateStr, &endDateStr,
 		&ri.CurrencyCode, &ri.ExchangeRate, &ri.PaymentMethod,
@@ -216,7 +223,7 @@ func (r *RecurringInvoiceRepository) GetByID(ctx context.Context, id int64) (*do
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("recurring invoice %d not found: %w", id, err)
+			return nil, fmt.Errorf("recurring invoice %d not found: %w", id, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying recurring invoice %d: %w", id, err)
 	}
@@ -259,13 +266,13 @@ func (r *RecurringInvoiceRepository) GetByID(ctx context.Context, id int64) (*do
 		}
 	}
 
-	// Fetch items.
+	// Fetch items (scoped to company for defense-in-depth).
 	itemRows, err := r.db.QueryContext(ctx, `
 		SELECT id, recurring_invoice_id, description, quantity, unit, unit_price,
 			vat_rate_percent, sort_order
 		FROM recurring_invoice_items
-		WHERE recurring_invoice_id = ?
-		ORDER BY sort_order ASC`, id,
+		WHERE recurring_invoice_id = ? AND company_id = ?
+		ORDER BY sort_order ASC`, id, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("querying items for recurring invoice %d: %w", id, err)
@@ -289,8 +296,8 @@ func (r *RecurringInvoiceRepository) GetByID(ctx context.Context, id int64) (*do
 	return ri, nil
 }
 
-// List retrieves all non-deleted recurring invoices with customer name.
-func (r *RecurringInvoiceRepository) List(ctx context.Context) ([]domain.RecurringInvoice, error) {
+// List retrieves all non-deleted recurring invoices with customer name within the given company.
+func (r *RecurringInvoiceRepository) List(ctx context.Context, companyID int64) ([]domain.RecurringInvoice, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
 			ri.id, ri.name, ri.customer_id, ri.frequency, ri.next_issue_date, ri.end_date,
@@ -301,8 +308,8 @@ func (r *RecurringInvoiceRepository) List(ctx context.Context) ([]domain.Recurri
 			COALESCE(c.name, '') AS customer_name
 		FROM recurring_invoices ri
 		LEFT JOIN contacts c ON c.id = ri.customer_id
-		WHERE ri.deleted_at IS NULL
-		ORDER BY ri.next_issue_date ASC`)
+		WHERE ri.company_id = ? AND ri.deleted_at IS NULL
+		ORDER BY ri.next_issue_date ASC`, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("listing recurring invoices: %w", err)
 	}
@@ -361,8 +368,8 @@ func (r *RecurringInvoiceRepository) List(ctx context.Context) ([]domain.Recurri
 	return result, nil
 }
 
-// ListDue returns active recurring invoices where next_issue_date <= date.
-func (r *RecurringInvoiceRepository) ListDue(ctx context.Context, date time.Time) ([]domain.RecurringInvoice, error) {
+// ListDue returns active recurring invoices where next_issue_date <= date within the given company.
+func (r *RecurringInvoiceRepository) ListDue(ctx context.Context, companyID int64, date time.Time) ([]domain.RecurringInvoice, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
 			ri.id, ri.name, ri.customer_id, ri.frequency, ri.next_issue_date, ri.end_date,
@@ -371,10 +378,11 @@ func (r *RecurringInvoiceRepository) ListDue(ctx context.Context, date time.Time
 			ri.constant_symbol, ri.notes, ri.is_active,
 			ri.created_at, ri.updated_at, ri.deleted_at
 		FROM recurring_invoices ri
-		WHERE ri.deleted_at IS NULL
+		WHERE ri.company_id = ?
+			AND ri.deleted_at IS NULL
 			AND ri.is_active = 1
 			AND ri.next_issue_date <= ?
-		ORDER BY ri.next_issue_date ASC`, date.Format("2006-01-02"))
+		ORDER BY ri.next_issue_date ASC`, companyID, date.Format("2006-01-02"))
 	if err != nil {
 		return nil, fmt.Errorf("listing due recurring invoices: %w", err)
 	}
@@ -435,8 +443,8 @@ func (r *RecurringInvoiceRepository) ListDue(ctx context.Context, date time.Time
 			SELECT id, recurring_invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, sort_order
 			FROM recurring_invoice_items
-			WHERE recurring_invoice_id = ?
-			ORDER BY sort_order ASC`, ri.ID)
+			WHERE recurring_invoice_id = ? AND company_id = ?
+			ORDER BY sort_order ASC`, ri.ID, companyID)
 		if err != nil {
 			return nil, fmt.Errorf("querying items for due recurring invoice %d: %w", ri.ID, err)
 		}
@@ -461,12 +469,12 @@ func (r *RecurringInvoiceRepository) ListDue(ctx context.Context, date time.Time
 	return result, nil
 }
 
-// Deactivate sets is_active to false for a recurring invoice.
-func (r *RecurringInvoiceRepository) Deactivate(ctx context.Context, id int64) error {
+// Deactivate sets is_active to false for a recurring invoice within the given company.
+func (r *RecurringInvoiceRepository) Deactivate(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE recurring_invoices SET is_active = 0, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		now.Format(time.RFC3339), id,
+		UPDATE recurring_invoices SET is_active = 0, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		now.Format(time.RFC3339), id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("deactivating recurring invoice %d: %w", id, err)
@@ -477,7 +485,7 @@ func (r *RecurringInvoiceRepository) Deactivate(ctx context.Context, id int64) e
 		return fmt.Errorf("checking rows affected for recurring invoice %d deactivation: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("recurring invoice %d not found or already deleted", id)
+		return fmt.Errorf("recurring invoice %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }

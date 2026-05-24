@@ -398,7 +398,7 @@ func TestQuarterDateRange_Q4(t *testing.T) {
 func seedInvoiceWithDates(t *testing.T, db *sql.DB, customerID int64, issueDate, deliveryDate time.Time, status string, invType string, items []domain.InvoiceItem) *domain.Invoice {
 	t.Helper()
 
-	inv := testutil.SeedInvoice(t, db, customerID, items)
+	inv := testutil.SeedInvoice(t, db, 1, customerID, items)
 
 	// Update dates, status, and type via raw SQL to bypass service layer.
 	_, err := db.Exec(`

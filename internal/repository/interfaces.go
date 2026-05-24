@@ -21,27 +21,33 @@ type ContactRepo interface {
 }
 
 // InvoiceRepo defines the persistence interface for invoices.
+//
+// All methods are scoped to a single company via the companyID parameter;
+// rows belonging to other companies are invisible.
 type InvoiceRepo interface {
-	Create(ctx context.Context, invoice *domain.Invoice) error
-	Update(ctx context.Context, invoice *domain.Invoice) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.Invoice, error)
-	List(ctx context.Context, filter domain.InvoiceFilter) ([]domain.Invoice, int, error)
-	UpdateStatus(ctx context.Context, id int64, status string) error
-	GetNextNumber(ctx context.Context, sequenceID int64) (string, error)
-	GetRelatedInvoices(ctx context.Context, invoiceID int64) ([]domain.Invoice, error)
-	FindByRelatedInvoice(ctx context.Context, relatedID int64, relationType string) (*domain.Invoice, error)
+	Create(ctx context.Context, companyID int64, invoice *domain.Invoice) error
+	Update(ctx context.Context, companyID int64, invoice *domain.Invoice) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.Invoice, error)
+	List(ctx context.Context, companyID int64, filter domain.InvoiceFilter) ([]domain.Invoice, int, error)
+	UpdateStatus(ctx context.Context, companyID, id int64, status string) error
+	GetNextNumber(ctx context.Context, companyID, sequenceID int64) (string, error)
+	GetRelatedInvoices(ctx context.Context, companyID, invoiceID int64) ([]domain.Invoice, error)
+	FindByRelatedInvoice(ctx context.Context, companyID, relatedID int64, relationType string) (*domain.Invoice, error)
 }
 
 // ExpenseRepo defines the persistence interface for expenses.
+//
+// All methods are scoped to a single company via the companyID parameter;
+// rows belonging to other companies are invisible.
 type ExpenseRepo interface {
-	Create(ctx context.Context, expense *domain.Expense) error
-	Update(ctx context.Context, expense *domain.Expense) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.Expense, error)
-	List(ctx context.Context, filter domain.ExpenseFilter) ([]domain.Expense, int, error)
-	MarkTaxReviewed(ctx context.Context, ids []int64) error
-	UnmarkTaxReviewed(ctx context.Context, ids []int64) error
+	Create(ctx context.Context, companyID int64, expense *domain.Expense) error
+	Update(ctx context.Context, companyID int64, expense *domain.Expense) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.Expense, error)
+	List(ctx context.Context, companyID int64, filter domain.ExpenseFilter) ([]domain.Expense, int, error)
+	MarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error
+	UnmarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error
 }
 
 // InvoiceSequenceRepo defines the persistence interface for invoice sequences.
@@ -73,58 +79,70 @@ type CategoryRepo interface {
 }
 
 // DocumentRepo defines the persistence interface for expense documents.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type DocumentRepo interface {
-	Create(ctx context.Context, doc *domain.ExpenseDocument) error
-	GetByID(ctx context.Context, id int64) (*domain.ExpenseDocument, error)
-	ListByExpenseID(ctx context.Context, expenseID int64) ([]domain.ExpenseDocument, error)
-	Delete(ctx context.Context, id int64) error
-	CountByExpenseID(ctx context.Context, expenseID int64) (int, error)
+	Create(ctx context.Context, companyID int64, doc *domain.ExpenseDocument) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.ExpenseDocument, error)
+	ListByExpenseID(ctx context.Context, companyID, expenseID int64) ([]domain.ExpenseDocument, error)
+	Delete(ctx context.Context, companyID, id int64) error
+	CountByExpenseID(ctx context.Context, companyID, expenseID int64) (int, error)
 }
 
 // InvoiceDocumentRepo defines the persistence interface for invoice documents.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type InvoiceDocumentRepo interface {
-	Create(ctx context.Context, doc *domain.InvoiceDocument) error
-	GetByID(ctx context.Context, id int64) (*domain.InvoiceDocument, error)
-	ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.InvoiceDocument, error)
-	Delete(ctx context.Context, id int64) error
-	CountByInvoiceID(ctx context.Context, invoiceID int64) (int, error)
+	Create(ctx context.Context, companyID int64, doc *domain.InvoiceDocument) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.InvoiceDocument, error)
+	ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.InvoiceDocument, error)
+	Delete(ctx context.Context, companyID, id int64) error
+	CountByInvoiceID(ctx context.Context, companyID, invoiceID int64) (int, error)
 }
 
 // RecurringInvoiceRepo defines the persistence interface for recurring invoices.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type RecurringInvoiceRepo interface {
-	Create(ctx context.Context, ri *domain.RecurringInvoice) error
-	Update(ctx context.Context, ri *domain.RecurringInvoice) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.RecurringInvoice, error)
-	List(ctx context.Context) ([]domain.RecurringInvoice, error)
-	ListDue(ctx context.Context, date time.Time) ([]domain.RecurringInvoice, error)
-	Deactivate(ctx context.Context, id int64) error
+	Create(ctx context.Context, companyID int64, ri *domain.RecurringInvoice) error
+	Update(ctx context.Context, companyID int64, ri *domain.RecurringInvoice) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.RecurringInvoice, error)
+	List(ctx context.Context, companyID int64) ([]domain.RecurringInvoice, error)
+	ListDue(ctx context.Context, companyID int64, date time.Time) ([]domain.RecurringInvoice, error)
+	Deactivate(ctx context.Context, companyID, id int64) error
 }
 
 // RecurringExpenseRepo defines the persistence interface for recurring expenses.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type RecurringExpenseRepo interface {
-	Create(ctx context.Context, re *domain.RecurringExpense) error
-	Update(ctx context.Context, re *domain.RecurringExpense) error
-	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*domain.RecurringExpense, error)
-	List(ctx context.Context, limit, offset int) ([]domain.RecurringExpense, int, error)
-	ListActive(ctx context.Context) ([]domain.RecurringExpense, error)
-	ListDue(ctx context.Context, asOfDate time.Time) ([]domain.RecurringExpense, error)
-	Deactivate(ctx context.Context, id int64) error
-	Activate(ctx context.Context, id int64) error
+	Create(ctx context.Context, companyID int64, re *domain.RecurringExpense) error
+	Update(ctx context.Context, companyID int64, re *domain.RecurringExpense) error
+	Delete(ctx context.Context, companyID, id int64) error
+	GetByID(ctx context.Context, companyID, id int64) (*domain.RecurringExpense, error)
+	List(ctx context.Context, companyID int64, limit, offset int) ([]domain.RecurringExpense, int, error)
+	ListActive(ctx context.Context, companyID int64) ([]domain.RecurringExpense, error)
+	ListDue(ctx context.Context, companyID int64, asOfDate time.Time) ([]domain.RecurringExpense, error)
+	Deactivate(ctx context.Context, companyID, id int64) error
+	Activate(ctx context.Context, companyID, id int64) error
 }
 
 // StatusHistoryRepo defines the persistence interface for invoice status change records.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type StatusHistoryRepo interface {
-	Create(ctx context.Context, change *domain.InvoiceStatusChange) error
-	ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.InvoiceStatusChange, error)
+	Create(ctx context.Context, companyID int64, change *domain.InvoiceStatusChange) error
+	ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.InvoiceStatusChange, error)
 }
 
 // ReminderRepo defines the persistence interface for payment reminders.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type ReminderRepo interface {
-	Create(ctx context.Context, reminder *domain.PaymentReminder) error
-	ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.PaymentReminder, error)
-	CountByInvoiceID(ctx context.Context, invoiceID int64) (int, error)
+	Create(ctx context.Context, companyID int64, reminder *domain.PaymentReminder) error
+	ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.PaymentReminder, error)
+	CountByInvoiceID(ctx context.Context, companyID, invoiceID int64) (int, error)
 }
 
 // SettingsRepo defines the persistence interface for application settings.

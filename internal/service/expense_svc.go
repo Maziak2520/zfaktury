@@ -19,8 +19,8 @@ func NewExpenseService(repo repository.ExpenseRepo, audit *AuditService) *Expens
 	return &ExpenseService{repo: repo, audit: audit}
 }
 
-// Create validates and persists a new expense.
-func (s *ExpenseService) Create(ctx context.Context, expense *domain.Expense) error {
+// Create validates and persists a new expense under the given company.
+func (s *ExpenseService) Create(ctx context.Context, companyID int64, expense *domain.Expense) error {
 	if expense.Description == "" {
 		return fmt.Errorf("expense description is required: %w", domain.ErrInvalidInput)
 	}
@@ -48,7 +48,7 @@ func (s *ExpenseService) Create(ctx context.Context, expense *domain.Expense) er
 		expense.VATAmount = expense.Amount.Multiply(float64(expense.VATRatePercent) / (100.0 + float64(expense.VATRatePercent)))
 	}
 
-	if err := s.repo.Create(ctx, expense); err != nil {
+	if err := s.repo.Create(ctx, companyID, expense); err != nil {
 		return fmt.Errorf("creating expense: %w", err)
 	}
 	if s.audit != nil {
@@ -57,8 +57,8 @@ func (s *ExpenseService) Create(ctx context.Context, expense *domain.Expense) er
 	return nil
 }
 
-// Update validates and updates an existing expense.
-func (s *ExpenseService) Update(ctx context.Context, expense *domain.Expense) error {
+// Update validates and updates an existing expense within the given company.
+func (s *ExpenseService) Update(ctx context.Context, companyID int64, expense *domain.Expense) error {
 	if expense.ID == 0 {
 		return fmt.Errorf("expense ID is required: %w", domain.ErrInvalidInput)
 	}
@@ -80,11 +80,11 @@ func (s *ExpenseService) Update(ctx context.Context, expense *domain.Expense) er
 		expense.VATAmount = expense.Amount.Multiply(float64(expense.VATRatePercent) / (100.0 + float64(expense.VATRatePercent)))
 	}
 
-	existing, err := s.repo.GetByID(ctx, expense.ID)
+	existing, err := s.repo.GetByID(ctx, companyID, expense.ID)
 	if err != nil {
 		return fmt.Errorf("fetching expense for audit: %w", err)
 	}
-	if err := s.repo.Update(ctx, expense); err != nil {
+	if err := s.repo.Update(ctx, companyID, expense); err != nil {
 		return fmt.Errorf("updating expense: %w", err)
 	}
 	if s.audit != nil {
@@ -93,12 +93,12 @@ func (s *ExpenseService) Update(ctx context.Context, expense *domain.Expense) er
 	return nil
 }
 
-// Delete removes an expense by ID (soft delete).
-func (s *ExpenseService) Delete(ctx context.Context, id int64) error {
+// Delete removes an expense by ID (soft delete) within the given company.
+func (s *ExpenseService) Delete(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, companyID, id); err != nil {
 		return fmt.Errorf("deleting expense: %w", err)
 	}
 	if s.audit != nil {
@@ -107,21 +107,21 @@ func (s *ExpenseService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetByID retrieves an expense by its ID.
-func (s *ExpenseService) GetByID(ctx context.Context, id int64) (*domain.Expense, error) {
+// GetByID retrieves an expense by its ID within the given company.
+func (s *ExpenseService) GetByID(ctx context.Context, companyID, id int64) (*domain.Expense, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	exp, err := s.repo.GetByID(ctx, id)
+	exp, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching expense: %w", err)
 	}
 	return exp, nil
 }
 
-// List retrieves expenses matching the given filter.
+// List retrieves expenses matching the given filter within the given company.
 // Returns the expenses, total count, and any error.
-func (s *ExpenseService) List(ctx context.Context, filter domain.ExpenseFilter) ([]domain.Expense, int, error) {
+func (s *ExpenseService) List(ctx context.Context, companyID int64, filter domain.ExpenseFilter) ([]domain.Expense, int, error) {
 	if filter.Limit <= 0 {
 		filter.Limit = 20
 	}
@@ -131,7 +131,7 @@ func (s *ExpenseService) List(ctx context.Context, filter domain.ExpenseFilter) 
 	if filter.Offset < 0 {
 		filter.Offset = 0
 	}
-	expenses, count, err := s.repo.List(ctx, filter)
+	expenses, count, err := s.repo.List(ctx, companyID, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing expenses: %w", err)
 	}
@@ -140,29 +140,29 @@ func (s *ExpenseService) List(ctx context.Context, filter domain.ExpenseFilter) 
 
 const maxBulkIDs = 500
 
-// MarkTaxReviewed marks the given expense IDs as tax-reviewed.
-func (s *ExpenseService) MarkTaxReviewed(ctx context.Context, ids []int64) error {
+// MarkTaxReviewed marks the given expense IDs as tax-reviewed within the given company.
+func (s *ExpenseService) MarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error {
 	if len(ids) == 0 {
 		return fmt.Errorf("no expense IDs provided: %w", domain.ErrInvalidInput)
 	}
 	if len(ids) > maxBulkIDs {
 		return fmt.Errorf("too many IDs, maximum is 500: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.MarkTaxReviewed(ctx, dedupIDs(ids)); err != nil {
+	if err := s.repo.MarkTaxReviewed(ctx, companyID, dedupIDs(ids)); err != nil {
 		return fmt.Errorf("marking expenses as tax reviewed: %w", err)
 	}
 	return nil
 }
 
-// UnmarkTaxReviewed removes the tax review mark from the given expense IDs.
-func (s *ExpenseService) UnmarkTaxReviewed(ctx context.Context, ids []int64) error {
+// UnmarkTaxReviewed removes the tax review mark from the given expense IDs within the given company.
+func (s *ExpenseService) UnmarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error {
 	if len(ids) == 0 {
 		return fmt.Errorf("no expense IDs provided: %w", domain.ErrInvalidInput)
 	}
 	if len(ids) > maxBulkIDs {
 		return fmt.Errorf("too many IDs, maximum is 500: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.UnmarkTaxReviewed(ctx, dedupIDs(ids)); err != nil {
+	if err := s.repo.UnmarkTaxReviewed(ctx, companyID, dedupIDs(ids)); err != nil {
 		return fmt.Errorf("unmarking expenses tax review: %w", err)
 	}
 	return nil

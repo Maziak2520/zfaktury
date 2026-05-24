@@ -433,7 +433,7 @@ func TestIncomeTaxReturnService_Recalculate_ActualExpenses(t *testing.T) {
 	}
 
 	// Seed a tax-reviewed expense.
-	exp := testutil.SeedExpense(t, db, &domain.Expense{
+	exp := testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:     "Office rent",
 		IssueDate:       jan15,
 		Amount:          domain.NewAmount(50000, 0),
@@ -441,7 +441,7 @@ func TestIncomeTaxReturnService_Recalculate_ActualExpenses(t *testing.T) {
 		BusinessPercent: 100,
 	})
 	expRepo := repository.NewExpenseRepository(db)
-	if err := expRepo.MarkTaxReviewed(ctx, []int64{exp.ID}); err != nil {
+	if err := expRepo.MarkTaxReviewed(ctx, 1, []int64{exp.ID}); err != nil {
 		t.Fatalf("MarkTaxReviewed: %v", err)
 	}
 

@@ -45,7 +45,7 @@ func setupOCRRouter(t *testing.T, provider ocr.Provider) (*chi.Mux, int64) {
 	db := testutil.NewTestDB(t)
 	dataDir := t.TempDir()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 
 	docRepo := repository.NewDocumentRepository(db)
 	docSvc := service.NewDocumentService(docRepo, dataDir, nil)
@@ -55,6 +55,7 @@ func setupOCRRouter(t *testing.T, provider ocr.Provider) (*chi.Mux, int64) {
 	ocrHandler := NewOCRHandler(ocrSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Route("/api/v1", func(api chi.Router) {
 		// Expense-scoped document routes (normally in expenses Route group)
 		api.Post("/expenses/{id}/documents", docHandler.Upload)

@@ -535,7 +535,7 @@ func TestVATReturnService_Recalculate_WithExpenses(t *testing.T) {
 
 	// Seed a tax-deductible expense in March 2025.
 	march10 := time.Date(2025, 3, 10, 0, 0, 0, 0, time.UTC)
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		VendorID:        &vendor.ID,
 		ExpenseNumber:   "VF2025001",
 		Description:     "Office supplies",
@@ -638,7 +638,7 @@ func TestVATReturnService_Recalculate_WithInvoiceAndExpense(t *testing.T) {
 	}
 
 	// Seed expense: 6050 CZK (5000 base + 1050 VAT).
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		VendorID:        &vendor.ID,
 		ExpenseNumber:   "VF2025010",
 		Description:     "Materials",
@@ -845,7 +845,7 @@ func TestVATReturnService_Recalculate_PartialBusinessPercent(t *testing.T) {
 
 	march5 := time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC)
 	// Expense with 60% business use.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		VendorID:        &vendor.ID,
 		ExpenseNumber:   "VF2025020",
 		Description:     "Car fuel",

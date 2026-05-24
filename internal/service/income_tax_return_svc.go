@@ -12,6 +12,11 @@ import (
 	"github.com/zajca/zfaktury/internal/repository"
 )
 
+// incomeTaxReturnFallbackCompanyID is a transitional shim — income tax return
+// service is not yet company-scoped (T22 will thread companyID through it).
+// Remove when this service gains an explicit companyID.
+const incomeTaxReturnFallbackCompanyID int64 = 1 // remove in T22
+
 // IncomeTaxReturnService provides business logic for income tax return management.
 type IncomeTaxReturnService struct {
 	repo                repository.IncomeTaxReturnRepo
@@ -154,7 +159,7 @@ func (s *IncomeTaxReturnService) Recalculate(ctx context.Context, id int64) (*do
 	}
 
 	// Step 1: Calculate annual base from invoices and expenses.
-	base, err := CalculateAnnualBase(ctx, s.invoiceRepo, s.expenseRepo, itr.Year)
+	base, err := CalculateAnnualBase(ctx, s.invoiceRepo, s.expenseRepo, incomeTaxReturnFallbackCompanyID, itr.Year)
 	if err != nil {
 		return nil, fmt.Errorf("calculating annual base for income_tax_return: %w", err)
 	}

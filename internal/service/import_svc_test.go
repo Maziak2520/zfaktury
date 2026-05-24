@@ -25,7 +25,7 @@ func newMockExpenseRepo() *mockExpenseRepo {
 	}
 }
 
-func (m *mockExpenseRepo) Create(ctx context.Context, expense *domain.Expense) error {
+func (m *mockExpenseRepo) Create(ctx context.Context, companyID int64, expense *domain.Expense) error {
 	if m.createErr != nil {
 		return m.createErr
 	}
@@ -36,7 +36,7 @@ func (m *mockExpenseRepo) Create(ctx context.Context, expense *domain.Expense) e
 	return nil
 }
 
-func (m *mockExpenseRepo) Update(ctx context.Context, expense *domain.Expense) error {
+func (m *mockExpenseRepo) Update(ctx context.Context, companyID int64, expense *domain.Expense) error {
 	if _, ok := m.expenses[expense.ID]; !ok {
 		return errors.New("expense not found")
 	}
@@ -45,7 +45,7 @@ func (m *mockExpenseRepo) Update(ctx context.Context, expense *domain.Expense) e
 	return nil
 }
 
-func (m *mockExpenseRepo) Delete(ctx context.Context, id int64) error {
+func (m *mockExpenseRepo) Delete(ctx context.Context, companyID, id int64) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -56,7 +56,7 @@ func (m *mockExpenseRepo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockExpenseRepo) GetByID(ctx context.Context, id int64) (*domain.Expense, error) {
+func (m *mockExpenseRepo) GetByID(ctx context.Context, companyID, id int64) (*domain.Expense, error) {
 	e, ok := m.expenses[id]
 	if !ok {
 		return nil, errors.New("expense not found")
@@ -65,7 +65,7 @@ func (m *mockExpenseRepo) GetByID(ctx context.Context, id int64) (*domain.Expens
 	return &cp, nil
 }
 
-func (m *mockExpenseRepo) List(ctx context.Context, filter domain.ExpenseFilter) ([]domain.Expense, int, error) {
+func (m *mockExpenseRepo) List(ctx context.Context, companyID int64, filter domain.ExpenseFilter) ([]domain.Expense, int, error) {
 	var result []domain.Expense
 	for _, e := range m.expenses {
 		result = append(result, *e)
@@ -73,11 +73,11 @@ func (m *mockExpenseRepo) List(ctx context.Context, filter domain.ExpenseFilter)
 	return result, len(result), nil
 }
 
-func (m *mockExpenseRepo) MarkTaxReviewed(ctx context.Context, ids []int64) error {
+func (m *mockExpenseRepo) MarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error {
 	return nil
 }
 
-func (m *mockExpenseRepo) UnmarkTaxReviewed(ctx context.Context, ids []int64) error {
+func (m *mockExpenseRepo) UnmarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error {
 	return nil
 }
 
@@ -87,11 +87,11 @@ type failingDocumentRepo struct {
 	createErr error
 }
 
-func (f *failingDocumentRepo) Create(ctx context.Context, doc *domain.ExpenseDocument) error {
+func (f *failingDocumentRepo) Create(ctx context.Context, companyID int64, doc *domain.ExpenseDocument) error {
 	if f.createErr != nil {
 		return f.createErr
 	}
-	return f.mockDocumentRepo.Create(ctx, doc)
+	return f.mockDocumentRepo.Create(ctx, companyID, doc)
 }
 
 // newImportTestService creates an ImportService with mock repos and t.TempDir() for document storage.
@@ -126,7 +126,7 @@ func TestImportService_ImportFromDocument_SuccessWithOCR(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	result, err := importSvc.ImportFromDocument(ctx, "faktura.pdf", "application/pdf", data)
+	result, err := importSvc.ImportFromDocument(ctx, 1, "faktura.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("ImportFromDocument() error: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestImportService_ImportFromDocument_SuccessWithoutOCR(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(jpegMagic)
-	result, err := importSvc.ImportFromDocument(ctx, "receipt.jpg", "image/jpeg", data)
+	result, err := importSvc.ImportFromDocument(ctx, 1, "receipt.jpg", "image/jpeg", data)
 	if err != nil {
 		t.Fatalf("ImportFromDocument() error: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestImportService_ImportFromDocument_UploadFailureRollsBackExpense(t *testi
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	_, err := importSvc.ImportFromDocument(ctx, "faktura.pdf", "application/pdf", data)
+	_, err := importSvc.ImportFromDocument(ctx, 1, "faktura.pdf", "application/pdf", data)
 	if err == nil {
 		t.Fatal("expected error when document upload fails")
 	}
@@ -254,7 +254,7 @@ func TestImportService_ImportFromDocument_UploadFailureRollbackDeleteFails(t *te
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	_, err := importSvc.ImportFromDocument(ctx, "faktura.pdf", "application/pdf", data)
+	_, err := importSvc.ImportFromDocument(ctx, 1, "faktura.pdf", "application/pdf", data)
 	if err == nil {
 		t.Fatal("expected error when document upload fails")
 	}
@@ -275,7 +275,7 @@ func TestImportService_ImportFromDocument_OCRFailureIsNonFatal(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	result, err := importSvc.ImportFromDocument(ctx, "receipt.pdf", "application/pdf", data)
+	result, err := importSvc.ImportFromDocument(ctx, 1, "receipt.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("ImportFromDocument() should succeed even when OCR fails, got error: %v", err)
 	}

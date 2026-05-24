@@ -17,7 +17,7 @@ func seedDocument(t *testing.T, repo *DocumentRepository, expenseID int64, filen
 		StoragePath: "/test/documents/" + filename,
 		Size:        1024,
 	}
-	if err := repo.Create(context.Background(), doc); err != nil {
+	if err := repo.Create(context.Background(), 1, doc); err != nil {
 		t.Fatalf("seeding document: %v", err)
 	}
 	return doc
@@ -29,7 +29,7 @@ func TestDocumentRepository_Create(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	_ = expenseRepo
 
 	doc := &domain.ExpenseDocument{
@@ -40,7 +40,7 @@ func TestDocumentRepository_Create(t *testing.T) {
 		Size:        2048,
 	}
 
-	if err := repo.Create(ctx, doc); err != nil {
+	if err := repo.Create(ctx, 1, doc); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -57,10 +57,10 @@ func TestDocumentRepository_GetByID(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	created := seedDocument(t, repo, expense.ID, "invoice.pdf")
 
-	got, err := repo.GetByID(ctx, created.ID)
+	got, err := repo.GetByID(ctx, 1, created.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestDocumentRepository_GetByID_NotFound(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByID(ctx, 99999)
+	_, err := repo.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent document")
 	}
@@ -95,14 +95,14 @@ func TestDocumentRepository_ListByExpenseID(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense1 := testutil.SeedExpense(t, db, nil)
-	expense2 := testutil.SeedExpense(t, db, nil)
+	expense1 := testutil.SeedExpense(t, db, 1, nil)
+	expense2 := testutil.SeedExpense(t, db, 1, nil)
 
 	seedDocument(t, repo, expense1.ID, "doc1.pdf")
 	seedDocument(t, repo, expense1.ID, "doc2.png")
 	seedDocument(t, repo, expense2.ID, "other.jpg")
 
-	docs, err := repo.ListByExpenseID(ctx, expense1.ID)
+	docs, err := repo.ListByExpenseID(ctx, 1, expense1.ID)
 	if err != nil {
 		t.Fatalf("ListByExpenseID() error: %v", err)
 	}
@@ -117,9 +117,9 @@ func TestDocumentRepository_ListByExpenseID_Empty(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 
-	docs, err := repo.ListByExpenseID(ctx, expense.ID)
+	docs, err := repo.ListByExpenseID(ctx, 1, expense.ID)
 	if err != nil {
 		t.Fatalf("ListByExpenseID() error: %v", err)
 	}
@@ -134,15 +134,15 @@ func TestDocumentRepository_Delete(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	doc := seedDocument(t, repo, expense.ID, "todelete.pdf")
 
-	if err := repo.Delete(ctx, doc.ID); err != nil {
+	if err := repo.Delete(ctx, 1, doc.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
 	// Should not be returned by GetByID after soft delete.
-	_, err := repo.GetByID(ctx, doc.ID)
+	_, err := repo.GetByID(ctx, 1, doc.ID)
 	if err == nil {
 		t.Error("expected error when getting soft-deleted document")
 	}
@@ -153,7 +153,7 @@ func TestDocumentRepository_Delete_NotFound(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	err := repo.Delete(ctx, 99999)
+	err := repo.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent document")
 	}
@@ -164,15 +164,15 @@ func TestDocumentRepository_Delete_ExcludesFromList(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	toDelete := seedDocument(t, repo, expense.ID, "delete_me.pdf")
 	seedDocument(t, repo, expense.ID, "keep_me.pdf")
 
-	if err := repo.Delete(ctx, toDelete.ID); err != nil {
+	if err := repo.Delete(ctx, 1, toDelete.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	docs, err := repo.ListByExpenseID(ctx, expense.ID)
+	docs, err := repo.ListByExpenseID(ctx, 1, expense.ID)
 	if err != nil {
 		t.Fatalf("ListByExpenseID() error: %v", err)
 	}
@@ -190,12 +190,12 @@ func TestDocumentRepository_CountByExpenseID(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	seedDocument(t, repo, expense.ID, "a.pdf")
 	seedDocument(t, repo, expense.ID, "b.pdf")
 	seedDocument(t, repo, expense.ID, "c.pdf")
 
-	count, err := repo.CountByExpenseID(ctx, expense.ID)
+	count, err := repo.CountByExpenseID(ctx, 1, expense.ID)
 	if err != nil {
 		t.Fatalf("CountByExpenseID() error: %v", err)
 	}
@@ -209,15 +209,15 @@ func TestDocumentRepository_CountByExpenseID_ExcludesDeleted(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	toDelete := seedDocument(t, repo, expense.ID, "delete_me.pdf")
 	seedDocument(t, repo, expense.ID, "keep.pdf")
 
-	if err := repo.Delete(ctx, toDelete.ID); err != nil {
+	if err := repo.Delete(ctx, 1, toDelete.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	count, err := repo.CountByExpenseID(ctx, expense.ID)
+	count, err := repo.CountByExpenseID(ctx, 1, expense.ID)
 	if err != nil {
 		t.Fatalf("CountByExpenseID() error: %v", err)
 	}

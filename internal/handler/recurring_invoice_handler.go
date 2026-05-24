@@ -197,8 +197,14 @@ func (h *RecurringInvoiceHandler) Routes() chi.Router {
 	return r
 }
 
-// Create handles POST /api/v1/recurring-invoices.
+// Create handles POST /api/v1/companies/{companyID}/recurring-invoices.
 func (h *RecurringInvoiceHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req recurringInvoiceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -211,7 +217,7 @@ func (h *RecurringInvoiceHandler) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.svc.Create(r.Context(), ri); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, ri); err != nil {
 		slog.Error("failed to create recurring invoice", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -220,9 +226,15 @@ func (h *RecurringInvoiceHandler) Create(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusCreated, recurringInvoiceFromDomain(ri))
 }
 
-// List handles GET /api/v1/recurring-invoices.
+// List handles GET /api/v1/companies/{companyID}/recurring-invoices.
 func (h *RecurringInvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
-	list, err := h.svc.List(r.Context())
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
+	list, err := h.svc.List(r.Context(), company.ID)
 	if err != nil {
 		slog.Error("failed to list recurring invoices", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list recurring invoices")
@@ -237,15 +249,21 @@ func (h *RecurringInvoiceHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, items)
 }
 
-// GetByID handles GET /api/v1/recurring-invoices/{id}.
+// GetByID handles GET /api/v1/companies/{companyID}/recurring-invoices/{id}.
 func (h *RecurringInvoiceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring invoice ID")
 		return
 	}
 
-	ri, err := h.svc.GetByID(r.Context(), id)
+	ri, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get recurring invoice", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "recurring invoice not found")
@@ -255,8 +273,14 @@ func (h *RecurringInvoiceHandler) GetByID(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, recurringInvoiceFromDomain(ri))
 }
 
-// Update handles PUT /api/v1/recurring-invoices/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/recurring-invoices/{id}.
 func (h *RecurringInvoiceHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring invoice ID")
@@ -276,13 +300,13 @@ func (h *RecurringInvoiceHandler) Update(w http.ResponseWriter, r *http.Request)
 	}
 	ri.ID = id
 
-	if err := h.svc.Update(r.Context(), ri); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, ri); err != nil {
 		slog.Error("failed to update recurring invoice", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
-	updated, err := h.svc.GetByID(r.Context(), id)
+	updated, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch updated recurring invoice")
 		return
@@ -291,15 +315,21 @@ func (h *RecurringInvoiceHandler) Update(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, recurringInvoiceFromDomain(updated))
 }
 
-// Delete handles DELETE /api/v1/recurring-invoices/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/recurring-invoices/{id}.
 func (h *RecurringInvoiceHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring invoice ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete recurring invoice", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "recurring invoice not found")
 		return
@@ -308,15 +338,21 @@ func (h *RecurringInvoiceHandler) Delete(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GenerateInvoice handles POST /api/v1/recurring-invoices/{id}/generate.
+// GenerateInvoice handles POST /api/v1/companies/{companyID}/recurring-invoices/{id}/generate.
 func (h *RecurringInvoiceHandler) GenerateInvoice(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring invoice ID")
 		return
 	}
 
-	invoice, err := h.svc.GenerateInvoice(r.Context(), id)
+	invoice, err := h.svc.GenerateInvoice(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to generate invoice from recurring", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
@@ -331,9 +367,15 @@ type processDueResponse struct {
 	GeneratedCount int `json:"generated_count"`
 }
 
-// ProcessDue handles POST /api/v1/recurring-invoices/process-due.
+// ProcessDue handles POST /api/v1/companies/{companyID}/recurring-invoices/process-due.
 func (h *RecurringInvoiceHandler) ProcessDue(w http.ResponseWriter, r *http.Request) {
-	count, err := h.svc.ProcessDue(r.Context())
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
+	count, err := h.svc.ProcessDue(r.Context(), company.ID)
 	if err != nil {
 		slog.Error("failed to process due recurring invoices", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to process due recurring invoices")

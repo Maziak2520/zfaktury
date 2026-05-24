@@ -33,6 +33,7 @@ func setupImportRouter(t *testing.T) *chi.Mux {
 	h := NewImportHandler(importSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Post("/api/v1/expenses/import", h.Import)
 
 	return r

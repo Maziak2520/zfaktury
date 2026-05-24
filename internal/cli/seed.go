@@ -368,13 +368,13 @@ func seedInvoices(ctx context.Context, svc *service.InvoiceService, repo reposit
 
 	// Helper: create, send, and pay an invoice.
 	createPaid := func(inv *domain.Invoice, paidAt time.Time) error {
-		if err := svc.Create(ctx, inv); err != nil {
+		if err := svc.Create(ctx, 1, inv); err != nil {
 			return err
 		}
-		if err := svc.MarkAsSent(ctx, inv.ID); err != nil {
+		if err := svc.MarkAsSent(ctx, 1, inv.ID); err != nil {
 			return err
 		}
-		if err := svc.MarkAsPaid(ctx, inv.ID, inv.TotalAmount, paidAt); err != nil {
+		if err := svc.MarkAsPaid(ctx, 1, inv.ID, inv.TotalAmount, paidAt); err != nil {
 			return err
 		}
 		count++
@@ -383,10 +383,10 @@ func seedInvoices(ctx context.Context, svc *service.InvoiceService, repo reposit
 
 	// Helper: create and send (unpaid).
 	createSent := func(inv *domain.Invoice) error {
-		if err := svc.Create(ctx, inv); err != nil {
+		if err := svc.Create(ctx, 1, inv); err != nil {
 			return err
 		}
-		if err := svc.MarkAsSent(ctx, inv.ID); err != nil {
+		if err := svc.MarkAsSent(ctx, 1, inv.ID); err != nil {
 			return err
 		}
 		count++
@@ -395,7 +395,7 @@ func seedInvoices(ctx context.Context, svc *service.InvoiceService, repo reposit
 
 	// Helper: create draft only.
 	createDraft := func(inv *domain.Invoice) error {
-		if err := svc.Create(ctx, inv); err != nil {
+		if err := svc.Create(ctx, 1, inv); err != nil {
 			return err
 		}
 		count++
@@ -560,13 +560,13 @@ func seedInvoices(ctx context.Context, svc *service.InvoiceService, repo reposit
 			{Description: "Restaurant menu website update", Quantity: 100, Unit: "ks", UnitPrice: 850000, VATRatePercent: 21},
 		},
 	}
-	if err := svc.Create(ctx, inv14); err != nil {
+	if err := svc.Create(ctx, 1, inv14); err != nil {
 		return 0, fmt.Errorf("invoice 14 create: %w", err)
 	}
-	if err := svc.MarkAsSent(ctx, inv14.ID); err != nil {
+	if err := svc.MarkAsSent(ctx, 1, inv14.ID); err != nil {
 		return 0, fmt.Errorf("invoice 14 send: %w", err)
 	}
-	if err := repo.UpdateStatus(ctx, inv14.ID, domain.InvoiceStatusOverdue); err != nil {
+	if err := repo.UpdateStatus(ctx, 1, inv14.ID, domain.InvoiceStatusOverdue); err != nil {
 		return 0, fmt.Errorf("invoice 14 overdue: %w", err)
 	}
 	count++
@@ -608,7 +608,7 @@ func seedInvoices(ctx context.Context, svc *service.InvoiceService, repo reposit
 	// 18. Kava Digital — credit note on inv #11, -12K
 	// Find invoice 11 to get its ID (it's the Kava 2026 annual maintenance).
 	kavaID := ids["kava"]
-	kavaInvoices, _, err := repo.List(ctx, domain.InvoiceFilter{CustomerID: &kavaID})
+	kavaInvoices, _, err := repo.List(ctx, 1, domain.InvoiceFilter{CustomerID: &kavaID})
 	if err != nil {
 		return 0, fmt.Errorf("finding kava invoices: %w", err)
 	}
@@ -692,7 +692,7 @@ func seedExpenses(ctx context.Context, svc *service.ExpenseService, ids contactI
 
 	for i, exp := range expenses {
 		e := exp
-		if err := svc.Create(ctx, &e); err != nil {
+		if err := svc.Create(ctx, 1, &e); err != nil {
 			return 0, fmt.Errorf("expense %d: %w", i+1, err)
 		}
 		count++
@@ -722,7 +722,7 @@ func seedRecurringInvoices(ctx context.Context, svc *service.RecurringInvoiceSer
 
 	for i, t := range templates {
 		tmpl := t
-		if err := svc.Create(ctx, &tmpl); err != nil {
+		if err := svc.Create(ctx, 1, &tmpl); err != nil {
 			return 0, fmt.Errorf("recurring invoice %d: %w", i+1, err)
 		}
 	}
@@ -742,7 +742,7 @@ func seedRecurringExpenses(ctx context.Context, svc *service.RecurringExpenseSer
 
 	for i, t := range templates {
 		tmpl := t
-		if err := svc.Create(ctx, &tmpl); err != nil {
+		if err := svc.Create(ctx, 1, &tmpl); err != nil {
 			return 0, fmt.Errorf("recurring expense %d: %w", i+1, err)
 		}
 	}

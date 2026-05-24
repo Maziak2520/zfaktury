@@ -11,6 +11,11 @@ import (
 	"github.com/zajca/zfaktury/internal/vatxml"
 )
 
+// vatControlFallbackCompanyID is a transitional shim — VAT control statement
+// service is not yet company-scoped (T22 will thread companyID through it).
+// Remove when this service gains an explicit companyID.
+const vatControlFallbackCompanyID int64 = 1 // remove in T22
+
 // VATControlStatementService provides business logic for VAT control statements.
 type VATControlStatementService struct {
 	repo     repository.VATControlStatementRepo
@@ -185,7 +190,7 @@ func (s *VATControlStatementService) buildInvoiceLines(ctx context.Context, csID
 		Offset:   0,
 	}
 
-	allInvoices, _, err := s.invoices.List(ctx, filter)
+	allInvoices, _, err := s.invoices.List(ctx, vatControlFallbackCompanyID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("listing invoices: %w", err)
 	}
@@ -213,13 +218,13 @@ func (s *VATControlStatementService) buildInvoiceLines(ctx context.Context, csID
 
 	for _, inv := range invoices {
 		// Load full invoice with items.
-		fullInv, err := s.invoices.GetByID(ctx, inv.ID)
+		fullInv, err := s.invoices.GetByID(ctx, vatControlFallbackCompanyID, inv.ID)
 		if err != nil {
 			return nil, fmt.Errorf("fetching invoice %d: %w", inv.ID, err)
 		}
 
 		// Load customer contact to check DIC.
-		contact, err := s.contacts.GetByID(ctx, defaultCompanyID, fullInv.CustomerID)
+		contact, err := s.contacts.GetByID(ctx, vatControlFallbackCompanyID, fullInv.CustomerID)
 		if err != nil {
 			return nil, fmt.Errorf("fetching contact for invoice %d: %w", inv.ID, err)
 		}
@@ -303,7 +308,7 @@ func (s *VATControlStatementService) buildExpenseLines(ctx context.Context, csID
 		Offset:   0,
 	}
 
-	allExpenses, _, err := s.expenses.List(ctx, filter)
+	allExpenses, _, err := s.expenses.List(ctx, vatControlFallbackCompanyID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("listing expenses: %w", err)
 	}
@@ -329,7 +334,7 @@ func (s *VATControlStatementService) buildExpenseLines(ctx context.Context, csID
 		// Check vendor DIC if vendor exists.
 		var vendorDIC string
 		if exp.VendorID != nil {
-			contact, err := s.contacts.GetByID(ctx, defaultCompanyID, *exp.VendorID)
+			contact, err := s.contacts.GetByID(ctx, vatControlFallbackCompanyID, *exp.VendorID)
 			if err != nil {
 				return nil, fmt.Errorf("fetching vendor for expense %d: %w", exp.ID, err)
 			}

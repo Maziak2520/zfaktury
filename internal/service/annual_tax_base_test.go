@@ -18,7 +18,7 @@ func TestCalculateAnnualBase_NoData(t *testing.T) {
 	expRepo := repository.NewExpenseRepository(db)
 	ctx := context.Background()
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestCalculateAnnualBase_WithInvoices(t *testing.T) {
 		t.Fatalf("inserting invoice 2: %v", err)
 	}
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestCalculateAnnualBase_ExcludesDraftInvoices(t *testing.T) {
 		t.Fatalf("inserting invoice: %v", err)
 	}
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestCalculateAnnualBase_ExcludesProforma(t *testing.T) {
 		t.Fatalf("inserting proforma: %v", err)
 	}
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestCalculateAnnualBase_CreditNoteSubtractsRevenue(t *testing.T) {
 		t.Fatalf("inserting credit note: %v", err)
 	}
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestCalculateAnnualBase_WithExpenses(t *testing.T) {
 	jan15 := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	// Tax-reviewed expense: 12,100 CZK total, 2,100 CZK VAT, 100% business.
-	exp := testutil.SeedExpense(t, db, &domain.Expense{
+	exp := testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:     "Office supplies",
 		IssueDate:       jan15,
 		Amount:          domain.NewAmount(12100, 0),
@@ -283,17 +283,17 @@ func TestCalculateAnnualBase_WithExpenses(t *testing.T) {
 		BusinessPercent: 100,
 	})
 	// Mark as tax-reviewed.
-	expRepo.MarkTaxReviewed(ctx, []int64{exp.ID})
+	expRepo.MarkTaxReviewed(ctx, 1, []int64{exp.ID})
 
 	// Non-reviewed expense -- should be excluded.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:     "Personal item",
 		IssueDate:       jan15,
 		Amount:          domain.NewAmount(5000, 0),
 		BusinessPercent: 100,
 	})
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}
@@ -317,16 +317,16 @@ func TestCalculateAnnualBase_ExpensePartialBusinessPercent(t *testing.T) {
 	jan15 := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	// Expense with 60% business use.
-	exp := testutil.SeedExpense(t, db, &domain.Expense{
+	exp := testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:     "Car fuel",
 		IssueDate:       jan15,
 		Amount:          domain.NewAmount(12100, 0),
 		VATAmount:       domain.NewAmount(2100, 0),
 		BusinessPercent: 60,
 	})
-	expRepo.MarkTaxReviewed(ctx, []int64{exp.ID})
+	expRepo.MarkTaxReviewed(ctx, 1, []int64{exp.ID})
 
-	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 2025)
+	base, err := CalculateAnnualBase(ctx, invRepo, expRepo, 1, 2025)
 	if err != nil {
 		t.Fatalf("CalculateAnnualBase() error: %v", err)
 	}

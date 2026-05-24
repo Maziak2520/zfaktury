@@ -31,13 +31,13 @@ func NewOCRService(provider ocr.Provider, documents *DocumentService) *OCRServic
 }
 
 // ProcessDocument retrieves a document by ID, reads its file data,
-// and sends it to the OCR provider for extraction.
-func (s *OCRService) ProcessDocument(ctx context.Context, documentID int64) (*domain.OCRResult, error) {
+// and sends it to the OCR provider for extraction, within the given company.
+func (s *OCRService) ProcessDocument(ctx context.Context, companyID, documentID int64) (*domain.OCRResult, error) {
 	if documentID == 0 {
 		return nil, fmt.Errorf("document ID is required")
 	}
 
-	doc, err := s.documents.GetByID(ctx, documentID)
+	doc, err := s.documents.GetByID(ctx, companyID, documentID)
 	if err != nil {
 		return nil, fmt.Errorf("getting document: %w", err)
 	}
@@ -46,7 +46,7 @@ func (s *OCRService) ProcessDocument(ctx context.Context, documentID int64) (*do
 		return nil, fmt.Errorf("document content type %q is not supported for OCR; supported: image/jpeg, image/png, application/pdf", doc.ContentType)
 	}
 
-	filePath, contentType, err := s.documents.GetFilePath(ctx, documentID)
+	filePath, contentType, err := s.documents.GetFilePath(ctx, companyID, documentID)
 	if err != nil {
 		return nil, fmt.Errorf("getting document file path: %w", err)
 	}

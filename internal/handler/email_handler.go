@@ -100,8 +100,14 @@ func (h *EmailHandler) GetDefaults(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SendEmail handles POST /api/v1/invoices/{id}/send-email.
+// SendEmail handles POST /api/v1/companies/{companyID}/invoices/{id}/send-email.
 func (h *EmailHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
@@ -147,7 +153,7 @@ func (h *EmailHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invoice, err := h.invoiceSvc.GetByID(r.Context(), id)
+	invoice, err := h.invoiceSvc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice for email", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "invoice not found")

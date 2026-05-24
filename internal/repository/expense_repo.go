@@ -34,18 +34,21 @@ func scanExpenseItem(s scanner) (domain.ExpenseItem, error) {
 }
 
 // insertExpenseItems inserts expense items using the given execer (tx or db).
+// All items are inserted under the same company as the parent expense.
 func insertExpenseItems(ctx context.Context, execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}, expenseID int64, items []domain.ExpenseItem) error {
+}, companyID, expenseID int64, items []domain.ExpenseItem) error {
 	for i := range items {
 		item := &items[i]
 		item.ExpenseID = expenseID
 
 		result, err := execer.ExecContext(ctx, `
 			INSERT INTO expense_items (
+				company_id,
 				expense_id, description, quantity, unit, unit_price,
 				vat_rate_percent, vat_amount, total_amount, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			companyID,
 			item.ExpenseID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.VATAmount, item.TotalAmount, item.SortOrder,
 		)
@@ -61,8 +64,8 @@ func insertExpenseItems(ctx context.Context, execer interface {
 	return nil
 }
 
-// Create inserts a new expense with its items into the database.
-func (r *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error {
+// Create inserts a new expense with its items into the database under the given company.
+func (r *ExpenseRepository) Create(ctx context.Context, companyID int64, e *domain.Expense) error {
 	now := time.Now()
 	e.CreatedAt = now
 	e.UpdatedAt = now
@@ -75,6 +78,7 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error
 
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO expenses (
+			company_id,
 			vendor_id, expense_number, category, description,
 			issue_date, amount, currency_code, exchange_rate,
 			vat_rate_percent, vat_amount,
@@ -82,7 +86,8 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error
 			document_path, notes,
 			tax_reviewed_at,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		e.VendorID, e.ExpenseNumber, e.Category, e.Description,
 		e.IssueDate.Format("2006-01-02"), e.Amount, e.CurrencyCode, e.ExchangeRate,
 		e.VATRatePercent, e.VATAmount,
@@ -101,7 +106,7 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error
 	}
 	e.ID = id
 
-	if err := insertExpenseItems(ctx, tx, e.ID, e.Items); err != nil {
+	if err := insertExpenseItems(ctx, tx, companyID, e.ID, e.Items); err != nil {
 		return err
 	}
 
@@ -111,8 +116,8 @@ func (r *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error
 	return nil
 }
 
-// Update modifies an existing expense and replaces its items.
-func (r *ExpenseRepository) Update(ctx context.Context, e *domain.Expense) error {
+// Update modifies an existing expense and replaces its items within the given company.
+func (r *ExpenseRepository) Update(ctx context.Context, companyID int64, e *domain.Expense) error {
 	e.UpdatedAt = time.Now()
 
 	var taxReviewedAt interface{}
@@ -135,26 +140,26 @@ func (r *ExpenseRepository) Update(ctx context.Context, e *domain.Expense) error
 			document_path = ?, notes = ?,
 			tax_reviewed_at = ?,
 			updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL`,
+		WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
 		e.VendorID, e.ExpenseNumber, e.Category, e.Description,
 		e.IssueDate.Format("2006-01-02"), e.Amount, e.CurrencyCode, e.ExchangeRate,
 		e.VATRatePercent, e.VATAmount,
 		e.IsTaxDeductible, e.BusinessPercent, e.PaymentMethod,
 		e.DocumentPath, e.Notes,
 		taxReviewedAt,
-		e.UpdatedAt.Format(time.RFC3339), e.ID,
+		e.UpdatedAt.Format(time.RFC3339), e.ID, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating expense %d: %w", e.ID, err)
 	}
 
-	// Delete existing items and re-insert.
-	_, err = tx.ExecContext(ctx, `DELETE FROM expense_items WHERE expense_id = ?`, e.ID)
+	// Delete existing items and re-insert (scoped to company for defense-in-depth).
+	_, err = tx.ExecContext(ctx, `DELETE FROM expense_items WHERE expense_id = ? AND company_id = ?`, e.ID, companyID)
 	if err != nil {
 		return fmt.Errorf("deleting old expense items for expense %d: %w", e.ID, err)
 	}
 
-	if err := insertExpenseItems(ctx, tx, e.ID, e.Items); err != nil {
+	if err := insertExpenseItems(ctx, tx, companyID, e.ID, e.Items); err != nil {
 		return err
 	}
 
@@ -164,13 +169,13 @@ func (r *ExpenseRepository) Update(ctx context.Context, e *domain.Expense) error
 	return nil
 }
 
-// Delete performs a soft delete on an expense.
-func (r *ExpenseRepository) Delete(ctx context.Context, id int64) error {
+// Delete performs a soft delete on an expense within the given company.
+func (r *ExpenseRepository) Delete(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	nowStr := now.Format(time.RFC3339)
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE expenses SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		nowStr, nowStr, id,
+		UPDATE expenses SET deleted_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		nowStr, nowStr, id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("soft-deleting expense %d: %w", id, err)
@@ -181,13 +186,14 @@ func (r *ExpenseRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("checking rows affected for expense %d: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("expense %d not found or already deleted", id)
+		return fmt.Errorf("expense %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// GetByID retrieves a single expense by ID, including vendor data if available.
-func (r *ExpenseRepository) GetByID(ctx context.Context, id int64) (*domain.Expense, error) {
+// GetByID retrieves a single expense by ID, including vendor data if available,
+// scoped to the given company.
+func (r *ExpenseRepository) GetByID(ctx context.Context, companyID, id int64) (*domain.Expense, error) {
 	e := &domain.Expense{}
 	var issueDateStr string
 	var createdAtStr string
@@ -211,7 +217,7 @@ func (r *ExpenseRepository) GetByID(ctx context.Context, id int64) (*domain.Expe
 			c.name, c.type, c.ico
 		FROM expenses e
 		LEFT JOIN contacts c ON c.id = e.vendor_id
-		WHERE e.id = ? AND e.deleted_at IS NULL`, id,
+		WHERE e.id = ? AND e.company_id = ? AND e.deleted_at IS NULL`, id, companyID,
 	).Scan(
 		&e.ID, &vendorID, &e.ExpenseNumber, &e.Category, &e.Description,
 		&issueDateStr, &e.Amount, &e.CurrencyCode, &e.ExchangeRate,
@@ -224,7 +230,7 @@ func (r *ExpenseRepository) GetByID(ctx context.Context, id int64) (*domain.Expe
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("expense %d not found: %w", id, err)
+			return nil, fmt.Errorf("expense %d not found: %w", id, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying expense %d: %w", id, err)
 	}
@@ -262,13 +268,13 @@ func (r *ExpenseRepository) GetByID(ctx context.Context, id int64) (*domain.Expe
 		}
 	}
 
-	// Fetch items.
+	// Fetch items (scoped to company for defense-in-depth).
 	itemRows, err := r.db.QueryContext(ctx, `
 		SELECT id, expense_id, description, quantity, unit, unit_price,
 			vat_rate_percent, vat_amount, total_amount, sort_order
 		FROM expense_items
-		WHERE expense_id = ?
-		ORDER BY sort_order ASC`, id,
+		WHERE expense_id = ? AND company_id = ?
+		ORDER BY sort_order ASC`, id, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("querying items for expense %d: %w", id, err)
@@ -289,11 +295,11 @@ func (r *ExpenseRepository) GetByID(ctx context.Context, id int64) (*domain.Expe
 	return e, nil
 }
 
-// List retrieves expenses matching the given filter with pagination.
+// List retrieves expenses matching the given filter with pagination, scoped to the given company.
 // Returns the matching expenses, total count, and any error.
-func (r *ExpenseRepository) List(ctx context.Context, filter domain.ExpenseFilter) ([]domain.Expense, int, error) {
-	where := "e.deleted_at IS NULL"
-	args := []any{}
+func (r *ExpenseRepository) List(ctx context.Context, companyID int64, filter domain.ExpenseFilter) ([]domain.Expense, int, error) {
+	where := "e.company_id = ? AND e.deleted_at IS NULL"
+	args := []any{companyID}
 
 	if filter.Category != "" {
 		where += " AND e.category = ?"
@@ -415,38 +421,41 @@ func (r *ExpenseRepository) List(ctx context.Context, filter domain.ExpenseFilte
 	return expenses, total, nil
 }
 
-// MarkTaxReviewed sets tax_reviewed_at to the current timestamp for the given expense IDs.
-func (r *ExpenseRepository) MarkTaxReviewed(ctx context.Context, ids []int64) error {
+// MarkTaxReviewed sets tax_reviewed_at to the current timestamp for the given expense IDs
+// within the given company.
+func (r *ExpenseRepository) MarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	placeholders := strings.Repeat("?,", len(ids))
 	placeholders = placeholders[:len(placeholders)-1]
-	args := make([]any, len(ids)+1)
-	args[0] = time.Now().Format(time.RFC3339)
-	for i, id := range ids {
-		args[i+1] = id
+	args := make([]any, 0, len(ids)+2)
+	args = append(args, time.Now().Format(time.RFC3339))
+	for _, id := range ids {
+		args = append(args, id)
 	}
+	args = append(args, companyID)
 	_, err := r.db.ExecContext(ctx,
-		fmt.Sprintf("UPDATE expenses SET tax_reviewed_at = ? WHERE id IN (%s) AND deleted_at IS NULL", placeholders),
+		fmt.Sprintf("UPDATE expenses SET tax_reviewed_at = ? WHERE id IN (%s) AND company_id = ? AND deleted_at IS NULL", placeholders),
 		args...,
 	)
 	return err
 }
 
-// UnmarkTaxReviewed clears tax_reviewed_at for the given expense IDs.
-func (r *ExpenseRepository) UnmarkTaxReviewed(ctx context.Context, ids []int64) error {
+// UnmarkTaxReviewed clears tax_reviewed_at for the given expense IDs within the given company.
+func (r *ExpenseRepository) UnmarkTaxReviewed(ctx context.Context, companyID int64, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	placeholders := strings.Repeat("?,", len(ids))
 	placeholders = placeholders[:len(placeholders)-1]
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
+	args := make([]any, 0, len(ids)+1)
+	for _, id := range ids {
+		args = append(args, id)
 	}
+	args = append(args, companyID)
 	_, err := r.db.ExecContext(ctx,
-		fmt.Sprintf("UPDATE expenses SET tax_reviewed_at = NULL WHERE id IN (%s) AND deleted_at IS NULL", placeholders),
+		fmt.Sprintf("UPDATE expenses SET tax_reviewed_at = NULL WHERE id IN (%s) AND company_id = ? AND deleted_at IS NULL", placeholders),
 		args...,
 	)
 	return err

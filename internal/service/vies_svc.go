@@ -11,6 +11,11 @@ import (
 	"github.com/zajca/zfaktury/internal/vatxml"
 )
 
+// viesFallbackCompanyID is a transitional shim — VIES summary service is not
+// yet company-scoped (T22 will thread companyID through it). Remove when this
+// service gains an explicit companyID.
+const viesFallbackCompanyID int64 = 1 // remove in T22
+
 // VIESSummaryService provides business logic for VIES summary management.
 type VIESSummaryService struct {
 	repo     repository.VIESSummaryRepo
@@ -153,7 +158,7 @@ func (s *VIESSummaryService) Recalculate(ctx context.Context, id int64) error {
 		Offset:   0,
 	}
 
-	invoices, _, err := s.invoices.List(ctx, filter)
+	invoices, _, err := s.invoices.List(ctx, viesFallbackCompanyID, filter)
 	if err != nil {
 		return fmt.Errorf("listing invoices for VIES recalculation: %w", err)
 	}
@@ -182,7 +187,7 @@ func (s *VIESSummaryService) Recalculate(ctx context.Context, id int64) error {
 		}
 
 		// Load customer to check if EU partner.
-		customer, err := s.contacts.GetByID(ctx, defaultCompanyID, inv.CustomerID)
+		customer, err := s.contacts.GetByID(ctx, viesFallbackCompanyID, inv.CustomerID)
 		if err != nil {
 			return fmt.Errorf("fetching customer %d: %w", inv.CustomerID, err)
 		}

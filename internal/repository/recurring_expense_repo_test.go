@@ -42,7 +42,7 @@ func seedRecurringExpense(t *testing.T, repo *RecurringExpenseRepository, re *do
 	re.IsActive = true
 
 	ctx := context.Background()
-	if err := repo.Create(ctx, re); err != nil {
+	if err := repo.Create(ctx, 1, re); err != nil {
 		t.Fatalf("seedRecurringExpense: %v", err)
 	}
 	return re
@@ -64,7 +64,7 @@ func TestRecurringExpenseRepository_Create(t *testing.T) {
 		PaymentMethod:   "bank_transfer",
 	}
 
-	if err := repo.Create(context.Background(), re); err != nil {
+	if err := repo.Create(context.Background(), 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if re.ID == 0 {
@@ -86,7 +86,7 @@ func TestRecurringExpenseRepository_GetByID(t *testing.T) {
 		VendorID:    &vendor.ID,
 	})
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestRecurringExpenseRepository_GetByID_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	repo := NewRecurringExpenseRepository(db)
 
-	_, err := repo.GetByID(context.Background(), 99999)
+	_, err := repo.GetByID(context.Background(), 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent recurring expense")
 	}
@@ -122,11 +122,11 @@ func TestRecurringExpenseRepository_Update(t *testing.T) {
 
 	seeded.Name = "After"
 	seeded.Frequency = "quarterly"
-	if err := repo.Update(context.Background(), seeded); err != nil {
+	if err := repo.Update(context.Background(), 1, seeded); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -144,11 +144,11 @@ func TestRecurringExpenseRepository_Delete(t *testing.T) {
 
 	seeded := seedRecurringExpense(t, repo, nil)
 
-	if err := repo.Delete(context.Background(), seeded.ID); err != nil {
+	if err := repo.Delete(context.Background(), 1, seeded.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	_, err := repo.GetByID(context.Background(), seeded.ID)
+	_, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err == nil {
 		t.Error("expected error when getting deleted recurring expense")
 	}
@@ -158,7 +158,7 @@ func TestRecurringExpenseRepository_Delete_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	repo := NewRecurringExpenseRepository(db)
 
-	err := repo.Delete(context.Background(), 99999)
+	err := repo.Delete(context.Background(), 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent recurring expense")
 	}
@@ -171,7 +171,7 @@ func TestRecurringExpenseRepository_List(t *testing.T) {
 	seedRecurringExpense(t, repo, &domain.RecurringExpense{Name: "A"})
 	seedRecurringExpense(t, repo, &domain.RecurringExpense{Name: "B"})
 
-	items, total, err := repo.List(context.Background(), 0, 0)
+	items, total, err := repo.List(context.Background(), 1, 0, 0)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -190,11 +190,11 @@ func TestRecurringExpenseRepository_List_ExcludesSoftDeleted(t *testing.T) {
 	toDelete := seedRecurringExpense(t, repo, &domain.RecurringExpense{Name: "Delete me"})
 	seedRecurringExpense(t, repo, &domain.RecurringExpense{Name: "Keep me"})
 
-	if err := repo.Delete(context.Background(), toDelete.ID); err != nil {
+	if err := repo.Delete(context.Background(), 1, toDelete.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	items, total, err := repo.List(context.Background(), 0, 0)
+	items, total, err := repo.List(context.Background(), 1, 0, 0)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -213,11 +213,11 @@ func TestRecurringExpenseRepository_ListActive(t *testing.T) {
 	active := seedRecurringExpense(t, repo, &domain.RecurringExpense{Name: "Active"})
 	_ = active
 	inactive := seedRecurringExpense(t, repo, &domain.RecurringExpense{Name: "Inactive"})
-	if err := repo.Deactivate(context.Background(), inactive.ID); err != nil {
+	if err := repo.Deactivate(context.Background(), 1, inactive.ID); err != nil {
 		t.Fatalf("Deactivate() error: %v", err)
 	}
 
-	items, err := repo.ListActive(context.Background())
+	items, err := repo.ListActive(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("ListActive() error: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestRecurringExpenseRepository_ListDue(t *testing.T) {
 	})
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	items, err := repo.ListDue(context.Background(), asOf)
+	items, err := repo.ListDue(context.Background(), 1, asOf)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -261,11 +261,11 @@ func TestRecurringExpenseRepository_Deactivate(t *testing.T) {
 
 	seeded := seedRecurringExpense(t, repo, nil)
 
-	if err := repo.Deactivate(context.Background(), seeded.ID); err != nil {
+	if err := repo.Deactivate(context.Background(), 1, seeded.ID); err != nil {
 		t.Fatalf("Deactivate() error: %v", err)
 	}
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -279,15 +279,15 @@ func TestRecurringExpenseRepository_Activate(t *testing.T) {
 	repo := NewRecurringExpenseRepository(db)
 
 	seeded := seedRecurringExpense(t, repo, nil)
-	if err := repo.Deactivate(context.Background(), seeded.ID); err != nil {
+	if err := repo.Deactivate(context.Background(), 1, seeded.ID); err != nil {
 		t.Fatalf("Deactivate() error: %v", err)
 	}
 
-	if err := repo.Activate(context.Background(), seeded.ID); err != nil {
+	if err := repo.Activate(context.Background(), 1, seeded.ID); err != nil {
 		t.Fatalf("Activate() error: %v", err)
 	}
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestRecurringExpenseRepository_WithEndDate(t *testing.T) {
 		EndDate: &endDate,
 	})
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestRecurringExpenseRepository_List_WithPagination(t *testing.T) {
 	}
 
 	// Get first page.
-	items, total, err := repo.List(context.Background(), 2, 0)
+	items, total, err := repo.List(context.Background(), 1, 2, 0)
 	if err != nil {
 		t.Fatalf("List(2,0) error: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestRecurringExpenseRepository_List_WithPagination(t *testing.T) {
 	}
 
 	// Get second page.
-	items2, total2, err := repo.List(context.Background(), 2, 2)
+	items2, total2, err := repo.List(context.Background(), 1, 2, 2)
 	if err != nil {
 		t.Fatalf("List(2,2) error: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestRecurringExpenseRepository_List_WithPagination(t *testing.T) {
 	}
 
 	// Get last page.
-	items3, _, err := repo.List(context.Background(), 2, 4)
+	items3, _, err := repo.List(context.Background(), 1, 2, 4)
 	if err != nil {
 		t.Fatalf("List(2,4) error: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestRecurringExpenseRepository_List_WithVendor(t *testing.T) {
 		VendorID: &vendor.ID,
 	})
 
-	items, _, err := repo.List(context.Background(), 0, 0)
+	items, _, err := repo.List(context.Background(), 1, 0, 0)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -396,7 +396,7 @@ func TestRecurringExpenseRepository_List_Empty(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	repo := NewRecurringExpenseRepository(db)
 
-	items, total, err := repo.List(context.Background(), 0, 0)
+	items, total, err := repo.List(context.Background(), 1, 0, 0)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -412,7 +412,7 @@ func TestRecurringExpenseRepository_Deactivate_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	repo := NewRecurringExpenseRepository(db)
 
-	err := repo.Deactivate(context.Background(), 99999)
+	err := repo.Deactivate(context.Background(), 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent recurring expense")
 	}
@@ -423,9 +423,9 @@ func TestRecurringExpenseRepository_Deactivate_AlreadyDeleted(t *testing.T) {
 	repo := NewRecurringExpenseRepository(db)
 
 	seeded := seedRecurringExpense(t, repo, nil)
-	repo.Delete(context.Background(), seeded.ID)
+	repo.Delete(context.Background(), 1, seeded.ID)
 
-	err := repo.Deactivate(context.Background(), seeded.ID)
+	err := repo.Deactivate(context.Background(), 1, seeded.ID)
 	if err == nil {
 		t.Error("expected error when deactivating a deleted recurring expense")
 	}
@@ -436,9 +436,9 @@ func TestRecurringExpenseRepository_Delete_AlreadyDeleted(t *testing.T) {
 	repo := NewRecurringExpenseRepository(db)
 
 	seeded := seedRecurringExpense(t, repo, nil)
-	repo.Delete(context.Background(), seeded.ID)
+	repo.Delete(context.Background(), 1, seeded.ID)
 
-	err := repo.Delete(context.Background(), seeded.ID)
+	err := repo.Delete(context.Background(), 1, seeded.ID)
 	if err == nil {
 		t.Error("expected error when deleting already deleted recurring expense")
 	}
@@ -452,7 +452,7 @@ func TestRecurringExpenseRepository_GetByID_WithoutVendor(t *testing.T) {
 		Name: "No vendor",
 	})
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -469,7 +469,7 @@ func TestRecurringExpenseRepository_ListDue_Empty(t *testing.T) {
 	repo := NewRecurringExpenseRepository(db)
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	items, err := repo.ListDue(context.Background(), asOf)
+	items, err := repo.ListDue(context.Background(), 1, asOf)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -493,10 +493,10 @@ func TestRecurringExpenseRepository_ListDue_ExcludesInactive(t *testing.T) {
 		Name:          "Inactive due",
 		NextIssueDate: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 	})
-	repo.Deactivate(context.Background(), inactive.ID)
+	repo.Deactivate(context.Background(), 1, inactive.ID)
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	items, err := repo.ListDue(context.Background(), asOf)
+	items, err := repo.ListDue(context.Background(), 1, asOf)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -520,7 +520,7 @@ func TestRecurringExpenseRepository_ListDue_WithVendor(t *testing.T) {
 	})
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	items, err := repo.ListDue(context.Background(), asOf)
+	items, err := repo.ListDue(context.Background(), 1, asOf)
 	if err != nil {
 		t.Fatalf("ListDue() error: %v", err)
 	}
@@ -542,7 +542,7 @@ func TestRecurringExpenseRepository_ListActive_Empty(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	repo := NewRecurringExpenseRepository(db)
 
-	items, err := repo.ListActive(context.Background())
+	items, err := repo.ListActive(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("ListActive() error: %v", err)
 	}
@@ -561,11 +561,11 @@ func TestRecurringExpenseRepository_Update_WithEndDate(t *testing.T) {
 	seeded.EndDate = &endDate
 	seeded.Name = "After"
 
-	if err := repo.Update(context.Background(), seeded); err != nil {
+	if err := repo.Update(context.Background(), 1, seeded); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(context.Background(), seeded.ID)
+	got, err := repo.GetByID(context.Background(), 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
