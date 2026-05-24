@@ -361,3 +361,44 @@ func TestMultiCompanyMigration_VATReturnCompositeFK(t *testing.T) {
 		t.Error("expected composite FK violation on vat_return_expenses; vat_return belongs to company 2 but line names company 1")
 	}
 }
+
+func TestMultiCompanyMigration_SettingsPartitionedPerCompany(t *testing.T) {
+	db := openMigratedDB(t, true)
+	// The seed kept 'default_payment_method' (non-identity); it should now belong to company 1.
+	var cid int64
+	err := db.QueryRow(`SELECT company_id FROM settings WHERE key = 'default_payment_method'`).Scan(&cid)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if cid != 1 {
+		t.Errorf("default_payment_method company_id = %d, want 1", cid)
+	}
+
+	// Two companies can each have their own value under the same key.
+	_, err = db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO settings (company_id, key, value) VALUES (2, 'default_payment_method', 'cash')`); err != nil {
+		t.Errorf("expected company-partitioned settings to allow same key in another company: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO settings (company_id, key, value) VALUES (1, 'default_payment_method', 'duplicate')`); err == nil {
+		t.Error("expected UNIQUE violation on duplicate (1, default_payment_method)")
+	}
+}
+
+func TestMultiCompanyMigration_AuditLogHasNullableCompanyID(t *testing.T) {
+	db := openMigratedDB(t, true)
+	// Inserting an audit row without company_id must succeed (column is nullable).
+	// Schema uses entity_type (not entity_kind) -- see migrations 001 and 021.
+	if _, err := db.Exec(`INSERT INTO audit_log (action, entity_type, entity_id, created_at)
+		VALUES ('system.boot', 'system', 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`); err != nil {
+		t.Errorf("nullable company_id rejected null: %v", err)
+	}
+	// And with a value, it must persist.
+	if _, err := db.Exec(`INSERT INTO audit_log (action, entity_type, entity_id, company_id, created_at)
+		VALUES ('company.create', 'company', 1, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`); err != nil {
+		t.Errorf("company_id value rejected: %v", err)
+	}
+}

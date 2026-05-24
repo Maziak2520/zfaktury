@@ -337,10 +337,58 @@ CREATE INDEX idx_income_tax_returns_company         ON income_tax_returns(compan
 CREATE INDEX idx_income_tax_return_invoices_company ON income_tax_return_invoices(company_id);
 CREATE INDEX idx_income_tax_return_expenses_company ON income_tax_return_expenses(company_id);
 
+-- Rebuild: settings gains company_id and UNIQUE(company_id, key).
+-- Each company keeps its own templates, defaults, and Czech office codes.
+-- The original schema had key as PRIMARY KEY; the rebuild moves the primary
+-- key to a synthetic id and enforces uniqueness via UNIQUE(company_id, key).
+-- Uses the CREATE __new + DROP original + RENAME pattern (per T10 lesson)
+-- to avoid silently rewriting any FK references during rename.
+CREATE TABLE settings__new (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	company_id INTEGER NOT NULL DEFAULT 1 REFERENCES companies(id),
+	key        TEXT    NOT NULL,
+	value      TEXT    NOT NULL,
+	updated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+	UNIQUE(company_id, key)
+);
+INSERT INTO settings__new (company_id, key, value, updated_at)
+SELECT 1, key, value, updated_at FROM settings;
+DROP TABLE settings;
+ALTER TABLE settings__new RENAME TO settings;
+CREATE INDEX idx_settings_company ON settings(company_id);
+
+-- Partition: audit_log gains a nullable company_id column (no NOT NULL).
+-- The audit log stays global; the column is a filter value used by the
+-- /audit-log endpoint to scope queries to a specific company while still
+-- preserving cross-company entries (e.g. system events, company creation).
+ALTER TABLE audit_log ADD COLUMN company_id INTEGER REFERENCES companies(id);
+CREATE INDEX idx_audit_log_company ON audit_log(company_id);
+
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+
+-- Reverse: audit_log column (was added at the very end of Up, so reverse first).
+DROP INDEX IF EXISTS idx_audit_log_company;
+ALTER TABLE audit_log DROP COLUMN company_id;
+
+-- Reverse: settings rebuild back to its original key-as-PRIMARY-KEY shape.
+-- Best-effort: only company 1's rows survive the downgrade (multi-company
+-- users will lose every settings row that does not belong to company 1).
+-- Mirror of Up: CREATE __new + DROP original + RENAME so we never rename the
+-- live table out of the way. Must run BEFORE the identity-keys restore below
+-- (that block targets the old schema with key as PRIMARY KEY).
+DROP INDEX IF EXISTS idx_settings_company;
+CREATE TABLE settings__new (
+	key        TEXT PRIMARY KEY,
+	value      TEXT NOT NULL,
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+INSERT INTO settings__new (key, value, updated_at)
+SELECT key, value, updated_at FROM settings WHERE company_id = 1;
+DROP TABLE settings;
+ALTER TABLE settings__new RENAME TO settings;
 
 -- Reverse: income tax partition
 DROP INDEX IF EXISTS idx_income_tax_return_expenses_company;
