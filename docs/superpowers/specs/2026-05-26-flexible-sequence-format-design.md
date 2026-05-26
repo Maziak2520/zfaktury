@@ -58,14 +58,23 @@ follow naturally.
 A single render function evaluates a template against
 `(prefix string, year int, number int)`.
 
-| Token                  | Meaning                                       |
-|------------------------|-----------------------------------------------|
-| `{prefix}`             | prefix verbatim                               |
-| `{year}` or `{yyyy}`   | 4-digit year (e.g. `2026`)                    |
-| `{yy}` or `{year2}`    | 2-digit year, zero-padded (`year mod 100`)    |
-| `{number}`             | counter, no padding                           |
-| `{number:Nd}`          | counter, zero-padded to width N (N in 1..6)   |
-| any other characters   | literal (including `-`, `/`, space, letters)  |
+| Token                  | Meaning                                                          |
+|------------------------|------------------------------------------------------------------|
+| `{prefix}`             | prefix verbatim                                                  |
+| `{yyyy}`               | 4-digit year (e.g. `2026`). `{year}` is accepted as a silent alias for backward compatibility with the existing schema default. |
+| `{yy}`                 | 2-digit year, zero-padded (`year mod 100`)                       |
+| `{number}`             | counter, no padding                                              |
+| `{number:Nd}`          | counter, zero-padded to width N (N in 1..6; `N` is a placeholder, e.g. `{number:03d}` or `{number:04d}`). Width is a **minimum**: numbers exceeding the width render at full length without truncation (matches Go `fmt.Sprintf("%03d", 1000) == "1000"`). |
+| any other characters   | literal (including `-`, `/`, `.`, space, letters)                |
+
+**Not supported:** literal `{` or `}` characters in the template. The parser
+treats every `{` as the start of a token. Czech invoice numbers don't use
+brace literals in practice; revisit if real demand appears.
+
+**User-facing cheat-sheet** shows only the canonical forms
+(`{prefix} {yyyy} {yy} {number} {number:03d} {number:04d}`). The `{year}`
+alias is accepted by the parser but kept out of the docs to avoid two ways of
+spelling the same thing in new templates.
 
 Examples:
 
@@ -87,8 +96,14 @@ prefix is still stored.
 Enforced in `internal/format.ValidatePattern` and called from
 `SequenceService.Create` and `SequenceService.Update`:
 
-1. Trimmed pattern must be non-empty. (`SequenceService.Create` still falls
-   back to the default when the request field is empty.)
+1. Trimmed pattern must be non-empty. `ValidatePattern("")` returns an error
+   so an empty pattern can never reach `Render`. This is defence-in-depth:
+   the `format_pattern` column is `NOT NULL DEFAULT '{prefix}{year}{number:04d}'`
+   (see `001_initial_schema.sql:42` and `025_multi_company.sql:147`), and
+   `SequenceService.Create` and `GetOrCreateForYear` both fill the default
+   when the request omits it (`sequence_svc.go:35-37`, `:173`). An empty
+   pattern reaching the renderer would be a code bug, and the validator
+   makes that bug loud rather than silent.
 2. Pattern must contain exactly one `{number...}` token. Zero would make all
    invoices in the sequence collide; more than one is ambiguous.
 3. The width N in `{number:Nd}` must be 1..6. (Six is plenty: 999 999 invoices
@@ -161,8 +176,15 @@ faktury zůstanou beze změny." appears when the pattern field is dirtied.
 
 A new utility `frontend/src/lib/utils/sequence-format.ts` ports the renderer
 to TypeScript. The page imports it instead of doing inline string-padding.
-Tests guarantee parity with the Go implementation through identical
-fixtures.
+
+**Parity with the Go renderer is enforced through a shared fixture file**:
+`internal/format/testdata/render_cases.json` ships a list of
+`{pattern, prefix, year, number, want}` objects. Both `internal/format/sequence_test.go`
+and `frontend/src/lib/utils/sequence-format.test.ts` load and assert against
+this single source of truth. Adding a new edge case means adding one JSON
+entry, never two parallel test bodies. The fixture must cover at minimum:
+the legacy default, the user's migration target, all four padding variants,
+the `{year}` alias, and the overflow case below.
 
 ### Backward compatibility
 
@@ -186,7 +208,9 @@ variants and a few worked examples.
 Backend:
 
 - `internal/format/sequence_test.go` -- table-driven coverage of every token,
-  width edge cases, all validation error paths.
+  width edge cases, all validation error paths. Must include the overflow
+  case: pattern `{number:03d}`, number `1000`, expected output `"1000"`
+  (width is a minimum, no truncation).
 - `internal/service/sequence_svc_test.go` -- new cases for invalid patterns
   on `Create` / `Update`, plus a parity test asserting `FormatPreview` of the
   legacy default equals `"%s%d%04d"`.
@@ -220,4 +244,26 @@ Frontend:
 - Add `UNIQUE(company_id, invoice_number)` and drop the global UNIQUE on
   `invoices.invoice_number` once multi-company users start needing
   overlapping numbers across companies.
-- Optional `{month:02d}` token if real demand appears.
+- Optional `{mm}` (zero-padded month) token. Implementing it well requires
+  deciding what month is rendered (issue-date month vs. render-time month)
+  and most likely a follow-up where sequences are keyed by
+  `(company_id, prefix, year, month)` with monthly counter reset --
+  significantly more scope than just "add a token". Defer until a real user
+  asks.
+- Escaping for literal `{` / `}` (`{{` / `}}` style). Not in real Czech
+  invoice numbers; revisit only on demand.
+
+## Feedback log
+
+Review at `docs/superpowers/plans/2026-05-26-flexible-sequence-format-feedback.md`
+(dated 2026-05-26) was processed:
+
+| # | Item                              | Disposition  | Where addressed                                       |
+|---|-----------------------------------|--------------|-------------------------------------------------------|
+| 1 | Standardise on `{yyyy}` / `{yy}`  | Adopted with constraint -- `{year}` kept as silent alias to avoid touching the schema `DEFAULT` and existing service strings. `{year2}` dropped. | Token grammar table |
+| 2 | Escape `{` / `}`                  | Documented as not supported; YAGNI for Czech invoice numbers. | Token grammar "Not supported" note + Out of scope follow-ups |
+| 3 | `{mm}` month token now            | Pushback. Reviewer flagged it as nice-to-have, not a blocker; user did not ask for it; doing it well requires monthly-keyed sequences (counter reset) which is a separate feature. | Out of scope follow-ups |
+| 4 | `{number:Nd}` vs `{number:04d}`   | Adopted; clarified that `N` is a placeholder. | Token grammar table |
+| 5 | Front/back parity                 | Adopted; shared JSON fixture file specified. | Frontend section |
+| 6 | Number overflows padding          | Adopted; width is a minimum, no truncation; explicit test required. | Token grammar table + Tests |
+| 7 | Empty-pattern defence             | Adopted; documented the three layers that prevent it and the validator that turns any future bug into a loud error. | Validation rules |
