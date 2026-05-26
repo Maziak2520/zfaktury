@@ -70,7 +70,7 @@ describe('VIES Summary Detail', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/vies-summaries/1',
+				'/api/v1/companies/1/vies-summaries/1',
 				expect.objectContaining({ method: 'GET' })
 			);
 		});
@@ -184,7 +184,7 @@ describe('VIES Summary Detail', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/vies-summaries/1/recalculate',
+				'/api/v1/companies/1/vies-summaries/1/recalculate',
 				expect.objectContaining({ method: 'POST' })
 			);
 		});
@@ -212,7 +212,7 @@ describe('VIES Summary Detail', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/vies-summaries/1',
+				'/api/v1/companies/1/vies-summaries/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});

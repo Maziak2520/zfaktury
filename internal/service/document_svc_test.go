@@ -21,7 +21,7 @@ func newMockDocumentRepo() *mockDocumentRepo {
 	}
 }
 
-func (m *mockDocumentRepo) Create(ctx context.Context, doc *domain.ExpenseDocument) error {
+func (m *mockDocumentRepo) Create(ctx context.Context, companyID int64, doc *domain.ExpenseDocument) error {
 	doc.ID = m.nextID
 	m.nextID++
 	cp := *doc
@@ -29,7 +29,7 @@ func (m *mockDocumentRepo) Create(ctx context.Context, doc *domain.ExpenseDocume
 	return nil
 }
 
-func (m *mockDocumentRepo) GetByID(ctx context.Context, id int64) (*domain.ExpenseDocument, error) {
+func (m *mockDocumentRepo) GetByID(ctx context.Context, companyID, id int64) (*domain.ExpenseDocument, error) {
 	doc, ok := m.docs[id]
 	if !ok {
 		return nil, errNotFound(id)
@@ -38,7 +38,7 @@ func (m *mockDocumentRepo) GetByID(ctx context.Context, id int64) (*domain.Expen
 	return &cp, nil
 }
 
-func (m *mockDocumentRepo) ListByExpenseID(ctx context.Context, expenseID int64) ([]domain.ExpenseDocument, error) {
+func (m *mockDocumentRepo) ListByExpenseID(ctx context.Context, companyID, expenseID int64) ([]domain.ExpenseDocument, error) {
 	var result []domain.ExpenseDocument
 	for _, d := range m.docs {
 		if d.ExpenseID == expenseID {
@@ -48,7 +48,7 @@ func (m *mockDocumentRepo) ListByExpenseID(ctx context.Context, expenseID int64)
 	return result, nil
 }
 
-func (m *mockDocumentRepo) Delete(ctx context.Context, id int64) error {
+func (m *mockDocumentRepo) Delete(ctx context.Context, companyID, id int64) error {
 	if _, ok := m.docs[id]; !ok {
 		return errNotFound(id)
 	}
@@ -56,7 +56,7 @@ func (m *mockDocumentRepo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockDocumentRepo) CountByExpenseID(ctx context.Context, expenseID int64) (int, error) {
+func (m *mockDocumentRepo) CountByExpenseID(ctx context.Context, companyID, expenseID int64) (int, error) {
 	count := 0
 	for _, d := range m.docs {
 		if d.ExpenseID == expenseID {
@@ -107,7 +107,7 @@ func TestDocumentService_Upload_ValidPDF(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	doc, err := svc.Upload(ctx, 1, "receipt.pdf", "application/pdf", data)
+	doc, err := svc.Upload(ctx, 1, 1, "receipt.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestDocumentService_Upload_ValidImage(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(jpegMagic)
-	doc, err := svc.Upload(ctx, 1, "photo.jpg", "image/jpeg", data)
+	doc, err := svc.Upload(ctx, 1, 1, "photo.jpg", "image/jpeg", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestDocumentService_Upload_InvalidContentType(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader([]byte("not a valid file"))
-	_, err := svc.Upload(ctx, 1, "file.exe", "application/octet-stream", data)
+	_, err := svc.Upload(ctx, 1, 1, "file.exe", "application/octet-stream", data)
 	if err == nil {
 		t.Error("expected error for disallowed content type")
 	}
@@ -152,7 +152,7 @@ func TestDocumentService_Upload_TooLarge(t *testing.T) {
 	ctx := context.Background()
 
 	oversized := bytes.NewReader(bytes.Repeat([]byte("a"), maxDocumentSize+1))
-	_, err := svc.Upload(ctx, 1, "huge.pdf", "application/pdf", oversized)
+	_, err := svc.Upload(ctx, 1, 1, "huge.pdf", "application/pdf", oversized)
 	if err == nil {
 		t.Error("expected error for file exceeding size limit")
 	}
@@ -172,7 +172,7 @@ func TestDocumentService_Upload_TooManyDocuments(t *testing.T) {
 	repo.nextID = int64(maxDocsPerExpense + 1)
 
 	data := bytes.NewReader(pdfMagic)
-	_, err := svc.Upload(ctx, 42, "extra.pdf", "application/pdf", data)
+	_, err := svc.Upload(ctx, 1, 42, "extra.pdf", "application/pdf", data)
 	if err == nil {
 		t.Error("expected error when document limit is reached")
 	}
@@ -183,7 +183,7 @@ func TestDocumentService_Upload_ZeroExpenseID(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	_, err := svc.Upload(ctx, 0, "file.pdf", "application/pdf", data)
+	_, err := svc.Upload(ctx, 1, 0, "file.pdf", "application/pdf", data)
 	if err == nil {
 		t.Error("expected error for zero expense ID")
 	}
@@ -194,7 +194,7 @@ func TestDocumentService_Upload_SanitizesFilename(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	doc, err := svc.Upload(ctx, 1, "../../etc/passwd", "application/pdf", data)
+	doc, err := svc.Upload(ctx, 1, 1, "../../etc/passwd", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestDocumentService_GetByID_ZeroID(t *testing.T) {
 	svc, _ := newDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 0)
+	_, err := svc.GetByID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -220,7 +220,7 @@ func TestDocumentService_GetByID_NotFound(t *testing.T) {
 	svc, _ := newDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 99999)
+	_, err := svc.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent document")
 	}
@@ -230,7 +230,7 @@ func TestDocumentService_ListByExpenseID_ZeroID(t *testing.T) {
 	svc, _ := newDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.ListByExpenseID(ctx, 0)
+	_, err := svc.ListByExpenseID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero expense ID")
 	}
@@ -241,12 +241,12 @@ func TestDocumentService_ListByExpenseID_Success(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	_, err := svc.Upload(ctx, 1, "test.pdf", "application/pdf", data)
+	_, err := svc.Upload(ctx, 1, 1, "test.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
 
-	docs, err := svc.ListByExpenseID(ctx, 1)
+	docs, err := svc.ListByExpenseID(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("ListByExpenseID: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestDocumentService_ListByExpenseID_Empty(t *testing.T) {
 	svc, _ := newDocumentTestService(t)
 	ctx := context.Background()
 
-	docs, err := svc.ListByExpenseID(ctx, 999)
+	docs, err := svc.ListByExpenseID(ctx, 1, 999)
 	if err != nil {
 		t.Fatalf("ListByExpenseID: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestDocumentService_Delete_ZeroID(t *testing.T) {
 	svc, _ := newDocumentTestService(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 0)
+	err := svc.Delete(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -283,12 +283,12 @@ func TestDocumentService_Delete_RemovesFromRepo(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	doc, err := svc.Upload(ctx, 1, "todelete.pdf", "application/pdf", data)
+	doc, err := svc.Upload(ctx, 1, 1, "todelete.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	if err := svc.Delete(ctx, doc.ID); err != nil {
+	if err := svc.Delete(ctx, 1, doc.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
@@ -301,7 +301,7 @@ func TestDocumentService_GetFilePath_ZeroID(t *testing.T) {
 	svc, _ := newDocumentTestService(t)
 	ctx := context.Background()
 
-	_, _, err := svc.GetFilePath(ctx, 0)
+	_, _, err := svc.GetFilePath(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -312,12 +312,12 @@ func TestDocumentService_GetFilePath_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	data := bytes.NewReader(pdfMagic)
-	doc, err := svc.Upload(ctx, 1, "file.pdf", "application/pdf", data)
+	doc, err := svc.Upload(ctx, 1, 1, "file.pdf", "application/pdf", data)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	path, ct, err := svc.GetFilePath(ctx, doc.ID)
+	path, ct, err := svc.GetFilePath(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("GetFilePath() error: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestDocumentService_AllowedContentTypes(t *testing.T) {
 	for _, tt := range types {
 		t.Run(tt.contentType, func(t *testing.T) {
 			data := bytes.NewReader(tt.data)
-			_, err := svc.Upload(ctx, 1, tt.filename, tt.contentType, data)
+			_, err := svc.Upload(ctx, 1, 1, tt.filename, tt.contentType, data)
 			if err != nil {
 				t.Errorf("Upload() for %q error: %v", tt.contentType, err)
 			}

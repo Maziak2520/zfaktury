@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { expensesApi, type Expense } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
 	import Button from '$lib/ui/Button.svelte';
@@ -47,12 +49,17 @@
 		}, 300);
 	}
 
-	$effect(() => {
+	let mounted = false;
+	onMount(() => {
 		loadExpenses();
+		mounted = true;
 	});
+
+	onCompanyChange(() => loadExpenses());
 
 	$effect(() => {
 		search;
+		if (!mounted) return;
 		handleSearch();
 	});
 

@@ -69,7 +69,7 @@ describe('Expense detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/expenses/1',
+				'/api/v1/companies/1/expenses/1',
 				expect.objectContaining({ method: 'GET' })
 			);
 		});
@@ -152,7 +152,7 @@ describe('Expense detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/expenses/1',
+				'/api/v1/companies/1/expenses/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});

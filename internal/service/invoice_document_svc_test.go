@@ -20,7 +20,7 @@ func newMockInvoiceDocumentRepo() *mockInvoiceDocumentRepo {
 	}
 }
 
-func (m *mockInvoiceDocumentRepo) Create(ctx context.Context, doc *domain.InvoiceDocument) error {
+func (m *mockInvoiceDocumentRepo) Create(ctx context.Context, companyID int64, doc *domain.InvoiceDocument) error {
 	doc.ID = m.nextID
 	m.nextID++
 	cp := *doc
@@ -28,7 +28,7 @@ func (m *mockInvoiceDocumentRepo) Create(ctx context.Context, doc *domain.Invoic
 	return nil
 }
 
-func (m *mockInvoiceDocumentRepo) GetByID(ctx context.Context, id int64) (*domain.InvoiceDocument, error) {
+func (m *mockInvoiceDocumentRepo) GetByID(ctx context.Context, companyID, id int64) (*domain.InvoiceDocument, error) {
 	doc, ok := m.docs[id]
 	if !ok {
 		return nil, &notFoundError{id: id}
@@ -37,7 +37,7 @@ func (m *mockInvoiceDocumentRepo) GetByID(ctx context.Context, id int64) (*domai
 	return &cp, nil
 }
 
-func (m *mockInvoiceDocumentRepo) ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.InvoiceDocument, error) {
+func (m *mockInvoiceDocumentRepo) ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.InvoiceDocument, error) {
 	var result []domain.InvoiceDocument
 	for _, d := range m.docs {
 		if d.InvoiceID == invoiceID {
@@ -47,7 +47,7 @@ func (m *mockInvoiceDocumentRepo) ListByInvoiceID(ctx context.Context, invoiceID
 	return result, nil
 }
 
-func (m *mockInvoiceDocumentRepo) Delete(ctx context.Context, id int64) error {
+func (m *mockInvoiceDocumentRepo) Delete(ctx context.Context, companyID, id int64) error {
 	if _, ok := m.docs[id]; !ok {
 		return &notFoundError{id: id}
 	}
@@ -55,7 +55,7 @@ func (m *mockInvoiceDocumentRepo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockInvoiceDocumentRepo) CountByInvoiceID(ctx context.Context, invoiceID int64) (int, error) {
+func (m *mockInvoiceDocumentRepo) CountByInvoiceID(ctx context.Context, companyID, invoiceID int64) (int, error) {
 	count := 0
 	for _, d := range m.docs {
 		if d.InvoiceID == invoiceID {
@@ -78,7 +78,7 @@ func TestInvoiceDocumentService_Upload_ValidPDF(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	doc, err := svc.Upload(ctx, 1, "receipt.pdf", "application/pdf", pdfMagic)
+	doc, err := svc.Upload(ctx, 1, 1, "receipt.pdf", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestInvoiceDocumentService_Upload_ValidImage(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	doc, err := svc.Upload(ctx, 1, "photo.jpg", "image/jpeg", jpegMagic)
+	doc, err := svc.Upload(ctx, 1, 1, "photo.jpg", "image/jpeg", jpegMagic)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestInvoiceDocumentService_Upload_ZeroInvoiceID(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.Upload(ctx, 0, "file.pdf", "application/pdf", pdfMagic)
+	_, err := svc.Upload(ctx, 1, 0, "file.pdf", "application/pdf", pdfMagic)
 	if err == nil {
 		t.Error("expected error for zero invoice ID")
 	}
@@ -125,7 +125,7 @@ func TestInvoiceDocumentService_Upload_DotFilename(t *testing.T) {
 
 	// sanitizeFilename(".") returns "." which is a valid (if odd) filename.
 	// filepath.Base("") returns "." so empty string becomes ".".
-	doc, err := svc.Upload(ctx, 1, ".", "application/pdf", pdfMagic)
+	doc, err := svc.Upload(ctx, 1, 1, ".", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestInvoiceDocumentService_Upload_SanitizesFilename(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	doc, err := svc.Upload(ctx, 1, "../../etc/passwd", "application/pdf", pdfMagic)
+	doc, err := svc.Upload(ctx, 1, 1, "../../etc/passwd", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestInvoiceDocumentService_Upload_TooLarge(t *testing.T) {
 	ctx := context.Background()
 
 	oversized := make([]byte, maxDocumentSize+1)
-	_, err := svc.Upload(ctx, 1, "huge.pdf", "application/pdf", oversized)
+	_, err := svc.Upload(ctx, 1, 1, "huge.pdf", "application/pdf", oversized)
 	if err == nil {
 		t.Error("expected error for file exceeding size limit")
 	}
@@ -174,7 +174,7 @@ func TestInvoiceDocumentService_Upload_TooManyDocuments(t *testing.T) {
 	}
 	repo.nextID = int64(maxDocsPerInvoice + 1)
 
-	_, err := svc.Upload(ctx, 42, "extra.pdf", "application/pdf", pdfMagic)
+	_, err := svc.Upload(ctx, 1, 42, "extra.pdf", "application/pdf", pdfMagic)
 	if err == nil {
 		t.Error("expected error when document limit is reached")
 	}
@@ -197,7 +197,7 @@ func TestInvoiceDocumentService_Upload_ContentTypeDetection(t *testing.T) {
 
 	for _, tt := range types {
 		t.Run(tt.contentType, func(t *testing.T) {
-			doc, err := svc.Upload(ctx, 1, tt.filename, tt.contentType, tt.data)
+			doc, err := svc.Upload(ctx, 1, 1, tt.filename, tt.contentType, tt.data)
 			if err != nil {
 				t.Errorf("Upload() for %q error: %v", tt.contentType, err)
 			}
@@ -212,7 +212,7 @@ func TestInvoiceDocumentService_GetByID_ZeroID(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 0)
+	_, err := svc.GetByID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -222,7 +222,7 @@ func TestInvoiceDocumentService_GetByID_NotFound(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 99999)
+	_, err := svc.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent document")
 	}
@@ -232,12 +232,12 @@ func TestInvoiceDocumentService_GetByID_Success(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	doc, err := svc.Upload(ctx, 1, "test.pdf", "application/pdf", pdfMagic)
+	doc, err := svc.Upload(ctx, 1, 1, "test.pdf", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, doc.ID)
+	got, err := svc.GetByID(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestInvoiceDocumentService_ListByInvoiceID_ZeroID(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.ListByInvoiceID(ctx, 0)
+	_, err := svc.ListByInvoiceID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero invoice ID")
 	}
@@ -263,12 +263,12 @@ func TestInvoiceDocumentService_ListByInvoiceID_Success(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	_, err := svc.Upload(ctx, 1, "test.pdf", "application/pdf", pdfMagic)
+	_, err := svc.Upload(ctx, 1, 1, "test.pdf", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
 
-	docs, err := svc.ListByInvoiceID(ctx, 1)
+	docs, err := svc.ListByInvoiceID(ctx, 1, 1)
 	if err != nil {
 		t.Fatalf("ListByInvoiceID: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestInvoiceDocumentService_ListByInvoiceID_Empty(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	docs, err := svc.ListByInvoiceID(ctx, 999)
+	docs, err := svc.ListByInvoiceID(ctx, 1, 999)
 	if err != nil {
 		t.Fatalf("ListByInvoiceID: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestInvoiceDocumentService_Delete_ZeroID(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 0)
+	err := svc.Delete(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -304,12 +304,12 @@ func TestInvoiceDocumentService_Delete_RemovesFromRepo(t *testing.T) {
 	svc, repo := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	doc, err := svc.Upload(ctx, 1, "todelete.pdf", "application/pdf", pdfMagic)
+	doc, err := svc.Upload(ctx, 1, 1, "todelete.pdf", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	if err := svc.Delete(ctx, doc.ID); err != nil {
+	if err := svc.Delete(ctx, 1, doc.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
@@ -322,7 +322,7 @@ func TestInvoiceDocumentService_Delete_NotFound(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 99999)
+	err := svc.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent document")
 	}
@@ -332,7 +332,7 @@ func TestInvoiceDocumentService_GetFilePath_ZeroID(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	_, _, err := svc.GetFilePath(ctx, 0)
+	_, _, err := svc.GetFilePath(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -342,12 +342,12 @@ func TestInvoiceDocumentService_GetFilePath_Valid(t *testing.T) {
 	svc, _ := newInvoiceDocumentTestService(t)
 	ctx := context.Background()
 
-	doc, err := svc.Upload(ctx, 1, "file.pdf", "application/pdf", pdfMagic)
+	doc, err := svc.Upload(ctx, 1, 1, "file.pdf", "application/pdf", pdfMagic)
 	if err != nil {
 		t.Fatalf("Upload() error: %v", err)
 	}
 
-	path, ct, err := svc.GetFilePath(ctx, doc.ID)
+	path, ct, err := svc.GetFilePath(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("GetFilePath() error: %v", err)
 	}

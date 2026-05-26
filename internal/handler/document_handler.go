@@ -46,6 +46,12 @@ type documentResponse struct {
 // Upload handles POST /expenses/{id}/documents.
 // Expects a multipart form with a "file" field.
 func (h *DocumentHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	expenseID, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid expense ID")
@@ -69,7 +75,7 @@ func (h *DocumentHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 
-	doc, err := h.svc.Upload(r.Context(), expenseID, header.Filename, contentType, file)
+	doc, err := h.svc.Upload(r.Context(), company.ID, expenseID, header.Filename, contentType, file)
 	if err != nil {
 		slog.Error("failed to upload document", "error", err, "expense_id", expenseID)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
@@ -81,13 +87,19 @@ func (h *DocumentHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 // ListByExpense handles GET /expenses/{id}/documents.
 func (h *DocumentHandler) ListByExpense(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	expenseID, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid expense ID")
 		return
 	}
 
-	docs, err := h.svc.ListByExpenseID(r.Context(), expenseID)
+	docs, err := h.svc.ListByExpenseID(r.Context(), company.ID, expenseID)
 	if err != nil {
 		slog.Error("failed to list documents", "error", err, "expense_id", expenseID)
 		respondError(w, http.StatusInternalServerError, "failed to list documents")
@@ -104,13 +116,19 @@ func (h *DocumentHandler) ListByExpense(w http.ResponseWriter, r *http.Request) 
 
 // GetByID handles GET /documents/{id}.
 func (h *DocumentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	doc, err := h.svc.GetByID(r.Context(), id)
+	doc, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get document", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "document not found")
@@ -123,13 +141,19 @@ func (h *DocumentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // Download handles GET /documents/{id}/download.
 // Serves the file with appropriate Content-Type and Content-Disposition headers.
 func (h *DocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	doc, err := h.svc.GetByID(r.Context(), id)
+	doc, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get document", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "document not found")
@@ -152,13 +176,19 @@ func (h *DocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /documents/{id}.
 func (h *DocumentHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete document", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "document not found")
 		return

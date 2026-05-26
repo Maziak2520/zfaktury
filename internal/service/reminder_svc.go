@@ -10,15 +10,19 @@ import (
 )
 
 // reminderRepository defines the persistence operations needed by the reminder service.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type reminderRepository interface {
-	Create(ctx context.Context, reminder *domain.PaymentReminder) error
-	ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.PaymentReminder, error)
-	CountByInvoiceID(ctx context.Context, invoiceID int64) (int, error)
+	Create(ctx context.Context, companyID int64, reminder *domain.PaymentReminder) error
+	ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.PaymentReminder, error)
+	CountByInvoiceID(ctx context.Context, companyID, invoiceID int64) (int, error)
 }
 
 // reminderInvoiceRepo defines the invoice lookup needed by the reminder service.
+//
+// All methods are scoped to a single company via the companyID parameter.
 type reminderInvoiceRepo interface {
-	GetByID(ctx context.Context, id int64) (*domain.Invoice, error)
+	GetByID(ctx context.Context, companyID, id int64) (*domain.Invoice, error)
 }
 
 // reminderEmailSender abstracts email sending for testability.
@@ -28,7 +32,7 @@ type reminderEmailSender interface {
 
 // reminderSettingsReader abstracts settings lookup for testability.
 type reminderSettingsReader interface {
-	Get(ctx context.Context, key string) (string, error)
+	Get(ctx context.Context, companyID int64, key string) (string, error)
 }
 
 // ReminderService provides business logic for payment reminders.
@@ -54,11 +58,11 @@ func NewReminderService(
 	}
 }
 
-// SendReminder sends a payment reminder for the given invoice.
+// SendReminder sends a payment reminder for the given invoice within the given company.
 // It validates the invoice is overdue, determines the escalation level,
 // generates the appropriate email template, sends the email, and records the reminder.
-func (s *ReminderService) SendReminder(ctx context.Context, invoiceID int64) (*domain.PaymentReminder, error) {
-	inv, err := s.invoiceRepo.GetByID(ctx, invoiceID)
+func (s *ReminderService) SendReminder(ctx context.Context, companyID, invoiceID int64) (*domain.PaymentReminder, error) {
+	inv, err := s.invoiceRepo.GetByID(ctx, companyID, invoiceID)
 	if err != nil {
 		return nil, fmt.Errorf("getting invoice: %w", err)
 	}
@@ -75,7 +79,7 @@ func (s *ReminderService) SendReminder(ctx context.Context, invoiceID int64) (*d
 	customerEmail := inv.Customer.Email
 
 	// Determine reminder level (1-3, capped at 3).
-	count, err := s.reminderRepo.CountByInvoiceID(ctx, invoiceID)
+	count, err := s.reminderRepo.CountByInvoiceID(ctx, companyID, invoiceID)
 	if err != nil {
 		return nil, fmt.Errorf("counting reminders: %w", err)
 	}
@@ -92,7 +96,7 @@ func (s *ReminderService) SendReminder(ctx context.Context, invoiceID int64) (*d
 	}
 
 	// Read company name from settings.
-	userName, _ := s.settingsReader.Get(ctx, "company_name")
+	userName, _ := s.settingsReader.Get(ctx, companyID, "company_name")
 
 	// Build template data.
 	data := email.ReminderData{
@@ -128,16 +132,16 @@ func (s *ReminderService) SendReminder(ctx context.Context, invoiceID int64) (*d
 		Subject:        subject,
 		BodyPreview:    truncate(bodyText, 200),
 	}
-	if err := s.reminderRepo.Create(ctx, reminder); err != nil {
+	if err := s.reminderRepo.Create(ctx, companyID, reminder); err != nil {
 		return nil, fmt.Errorf("recording reminder: %w", err)
 	}
 
 	return reminder, nil
 }
 
-// GetReminders returns all reminders for the given invoice.
-func (s *ReminderService) GetReminders(ctx context.Context, invoiceID int64) ([]domain.PaymentReminder, error) {
-	reminders, err := s.reminderRepo.ListByInvoiceID(ctx, invoiceID)
+// GetReminders returns all reminders for the given invoice within the given company.
+func (s *ReminderService) GetReminders(ctx context.Context, companyID, invoiceID int64) ([]domain.PaymentReminder, error) {
+	reminders, err := s.reminderRepo.ListByInvoiceID(ctx, companyID, invoiceID)
 	if err != nil {
 		return nil, fmt.Errorf("listing reminders for invoice: %w", err)
 	}

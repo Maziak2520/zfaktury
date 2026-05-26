@@ -103,7 +103,7 @@ describe('VIES Summary Create', () => {
 			const createCall = mockFetch.mock.calls.find(
 				(call: any[]) =>
 					typeof call[0] === 'string' &&
-					call[0].includes('/api/v1/vies-summaries') &&
+					call[0].includes('/api/v1/companies/1/vies-summaries') &&
 					call[1]?.method === 'POST'
 			);
 			expect(createCall).toBeDefined();

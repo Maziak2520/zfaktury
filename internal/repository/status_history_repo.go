@@ -19,12 +19,12 @@ func NewStatusHistoryRepository(db *sql.DB) *StatusHistoryRepository {
 	return &StatusHistoryRepository{db: db}
 }
 
-// Create inserts a new status change record.
-func (r *StatusHistoryRepository) Create(ctx context.Context, change *domain.InvoiceStatusChange) error {
+// Create inserts a new status change record under the given company.
+func (r *StatusHistoryRepository) Create(ctx context.Context, companyID int64, change *domain.InvoiceStatusChange) error {
 	result, err := r.db.ExecContext(ctx, `
-		INSERT INTO invoice_status_history (invoice_id, old_status, new_status, changed_at, note)
-		VALUES (?, ?, ?, ?, ?)`,
-		change.InvoiceID, change.OldStatus, change.NewStatus,
+		INSERT INTO invoice_status_history (company_id, invoice_id, old_status, new_status, changed_at, note)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		companyID, change.InvoiceID, change.OldStatus, change.NewStatus,
 		change.ChangedAt.Format(time.RFC3339), change.Note,
 	)
 	if err != nil {
@@ -39,13 +39,14 @@ func (r *StatusHistoryRepository) Create(ctx context.Context, change *domain.Inv
 	return nil
 }
 
-// ListByInvoiceID returns all status changes for the given invoice, ordered by changed_at ASC.
-func (r *StatusHistoryRepository) ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.InvoiceStatusChange, error) {
+// ListByInvoiceID returns all status changes for the given invoice within the given
+// company, ordered by changed_at ASC.
+func (r *StatusHistoryRepository) ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.InvoiceStatusChange, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, invoice_id, old_status, new_status, changed_at, note
 		FROM invoice_status_history
-		WHERE invoice_id = ?
-		ORDER BY changed_at ASC, id ASC`, invoiceID,
+		WHERE invoice_id = ? AND company_id = ?
+		ORDER BY changed_at ASC, id ASC`, invoiceID, companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing status history for invoice %d: %w", invoiceID, err)

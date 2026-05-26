@@ -71,7 +71,7 @@ describe('Recurring expenses list page', () => {
 		});
 
 		const url = mockFetch.mock.calls[0][0] as string;
-		expect(url).toContain('/api/v1/recurring-expenses');
+		expect(url).toContain('/api/v1/companies/1/recurring-expenses');
 	});
 
 	it('renders rows with name, frequency, and amount', async () => {
@@ -105,7 +105,7 @@ describe('Recurring expenses list page', () => {
 		await waitFor(() => {
 			const postCall = mockFetch.mock.calls.find(
 				(call) =>
-					(call[0] as string).includes('/api/v1/recurring-expenses/generate') &&
+					(call[0] as string).includes('/api/v1/companies/1/recurring-expenses/generate') &&
 					call[1]?.method === 'POST'
 			);
 			expect(postCall).toBeTruthy();

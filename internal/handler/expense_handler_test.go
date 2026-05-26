@@ -23,6 +23,7 @@ func setupExpenseRouter(t *testing.T) *chi.Mux {
 	h := NewExpenseHandler(expenseSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/expenses", h.Routes())
 	return r
 }

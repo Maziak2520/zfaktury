@@ -2,7 +2,8 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { viesApi, type VIESSummary } from '$lib/api/client';
+	import { viesApi, pcUrl, type VIESSummary } from '$lib/api/client';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
 	import { vatStatusLabels, filingTypeLabels, quarterLabels } from '$lib/utils/vat';
@@ -28,6 +29,8 @@
 		loadSummary();
 	});
 
+	onCompanyChange(() => loadSummary());
+
 	async function loadSummary() {
 		loading = true;
 		error = null;
@@ -43,7 +46,11 @@
 	async function handleRecalculate() {
 		actionLoading = true;
 		try {
-			summary = await viesApi.recalculate(summaryId);
+			const result = await viesApi.recalculate(summaryId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			summary = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se přepočítat');
 		} finally {
@@ -54,7 +61,11 @@
 	async function handleGenerateXml() {
 		actionLoading = true;
 		try {
-			summary = await viesApi.generateXml(summaryId);
+			const result = await viesApi.generateXml(summaryId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			summary = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se generovat XML');
 		} finally {
@@ -65,7 +76,7 @@
 	async function handleDownloadXml() {
 		try {
 			const filename = `souhrnne-hlaseni-${summary?.period.year}-Q${summary?.period.quarter}.xml`;
-			await downloadFile(`/api/v1/vies-summaries/${summaryId}/xml`, filename);
+			await downloadFile(pcUrl(`/vies-summaries/${summaryId}/xml`), filename);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se stáhnout XML');
 		}
@@ -79,7 +90,11 @@
 		showFileConfirm = false;
 		actionLoading = true;
 		try {
-			summary = await viesApi.markFiled(summaryId);
+			const result = await viesApi.markFiled(summaryId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			summary = result.data;
 			toastSuccess('Souhrnné hlášení označeno jako podané');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se označit jako podané');

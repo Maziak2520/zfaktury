@@ -141,6 +141,17 @@ cd frontend && npm test
 make coverage-frontend
 ```
 
+The production-sized migration test (`TestMultiCompanyMigrationProductionSized`)
+seeds ~22k rows into a v024 fixture and runs migration 025 end-to-end. It is
+gated behind the env var `ZFAKTURY_RUN_BIG_MIGRATION_TEST=1` so CI runs stay
+fast; enable it locally before merging schema changes that touch existing
+migrations:
+
+```bash
+ZFAKTURY_RUN_BIG_MIGRATION_TEST=1 CGO_ENABLED=0 go test ./internal/database \
+    -run TestMultiCompanyMigrationProductionSized -v -timeout 90s
+```
+
 ### Coverage
 
 Go backend test coverage is enforced at **80% minimum** via a pre-commit hook. Run `make install-hooks` after cloning to enable it.
@@ -275,6 +286,33 @@ Without the `[ocr]` section (or with an empty `api_key`), the import still works
 | HEIC | `image/heic` |
 
 Maximum file size: 20 MB. Up to 10 documents per expense.
+
+## Multi-Company Support
+
+zfaktury can manage multiple legal entities — for example, an OSVČ
+and an s.r.o. owned by the same person — from a single install.
+
+The active company is selectable from the header dropdown and
+persisted across sessions. Each company has its own contacts,
+invoices, expenses, tax filings, and sequences. Switching is
+instantaneous (no reload).
+
+When upgrading from a single-company install, the database
+migration creates a default company from your existing settings
+(name, IČO, DIČ, bank details, etc.) and backfills every existing
+record into it. You can rename it or add more companies after
+the first launch.
+
+To run the production-sized migration test locally before merging
+schema changes:
+
+```bash
+ZFAKTURY_RUN_BIG_MIGRATION_TEST=1 CGO_ENABLED=0 go test ./internal/database -run TestMultiCompanyMigrationProductionSized -v
+```
+
+See [docs/UPGRADING.md](docs/UPGRADING.md) for upgrade notes,
+including the known tax-year-tables limitation and the destructive
+downgrade caveat.
 
 ## License
 

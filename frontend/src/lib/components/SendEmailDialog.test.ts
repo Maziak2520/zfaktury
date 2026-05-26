@@ -105,7 +105,7 @@ describe('SendEmailDialog', () => {
 
 		// Second call should be send-email
 		const sendCall = mockFetch.mock.calls[1];
-		expect(sendCall[0]).toBe('/api/v1/invoices/42/send-email');
+		expect(sendCall[0]).toBe('/api/v1/companies/1/invoices/42/send-email');
 		const sentBody = JSON.parse(sendCall[1].body);
 		expect(sentBody.attach_pdf).toBe(true);
 		expect(sentBody.attach_isdoc).toBe(false);

@@ -7,6 +7,7 @@
 		type Contact,
 		type RecurringInvoice
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toISODate } from '$lib/utils/date';
 	import { paymentMethodLabels, frequencyLabels } from '$lib/utils/invoice';
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -46,6 +47,8 @@
 	onMount(() => {
 		loadContacts();
 	});
+
+	onCompanyChange(() => loadContacts());
 
 	async function loadContacts() {
 		try {

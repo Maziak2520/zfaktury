@@ -29,6 +29,12 @@ func NewExportHandler(invoiceSvc *service.InvoiceService, expenseSvc *service.Ex
 
 // ExportInvoices exports invoices for a given year as a CSV file.
 func (h *ExportHandler) ExportInvoices(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	year := time.Now().Year()
 	if v := r.URL.Query().Get("year"); v != "" {
 		parsed, err := strconv.Atoi(v)
@@ -49,7 +55,7 @@ func (h *ExportHandler) ExportInvoices(w http.ResponseWriter, r *http.Request) {
 		Offset:   0,
 	}
 
-	invoices, _, err := h.invoiceSvc.List(r.Context(), filter)
+	invoices, _, err := h.invoiceSvc.List(r.Context(), company.ID, filter)
 	if err != nil {
 		slog.Error("exporting invoices", "year", year, "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list invoices")
@@ -100,6 +106,12 @@ func (h *ExportHandler) ExportInvoices(w http.ResponseWriter, r *http.Request) {
 
 // ExportExpenses exports expenses for a given year as a CSV file.
 func (h *ExportHandler) ExportExpenses(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	year := time.Now().Year()
 	if v := r.URL.Query().Get("year"); v != "" {
 		parsed, err := strconv.Atoi(v)
@@ -120,7 +132,7 @@ func (h *ExportHandler) ExportExpenses(w http.ResponseWriter, r *http.Request) {
 		Offset:   0,
 	}
 
-	expenses, _, err := h.expenseSvc.List(r.Context(), filter)
+	expenses, _, err := h.expenseSvc.List(r.Context(), company.ID, filter)
 	if err != nil {
 		slog.Error("exporting expenses", "year", year, "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list expenses")

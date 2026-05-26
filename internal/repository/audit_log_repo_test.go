@@ -104,6 +104,45 @@ func TestAuditLogRepository_ListByEntity_Empty(t *testing.T) {
 	}
 }
 
+func TestAuditLogRepository_ListByCompany(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	ctx := context.Background()
+	repo := NewAuditLogRepository(db)
+
+	// Seed company 2 so company_id=2 satisfies the FK reference. Company 1
+	// is seeded by NewTestDB.
+	if _, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, vat_registered, created_at, updated_at)
+		VALUES (2, 'Second', 'Second', '11111111', 0, strftime('%Y-%m-%dT%H:%M:%SZ','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now'))`); err != nil {
+		t.Fatalf("seeding company 2: %v", err)
+	}
+
+	// Seed: one row for company 1, one for company 2, one with NULL company.
+	if _, err := db.Exec(`INSERT INTO audit_log (action, entity_type, entity_id, company_id, created_at)
+		VALUES ('a', 'x', 1, 1, strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+		       ('b', 'x', 2, 2, strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+		       ('c', 'x', 3, NULL, strftime('%Y-%m-%dT%H:%M:%SZ','now'))`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	one := int64(1)
+	got, _, err := repo.List(ctx, domain.AuditLogFilter{CompanyID: &one})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 || got[0].Action != "a" {
+		t.Errorf("got %d rows, want 1 with action 'a'", len(got))
+	}
+
+	// Without filter, all three returned.
+	got, _, err = repo.List(ctx, domain.AuditLogFilter{})
+	if err != nil {
+		t.Fatalf("List unfiltered: %v", err)
+	}
+	if len(got) != 3 {
+		t.Errorf("unfiltered = %d, want 3", len(got))
+	}
+}
+
 func TestAuditLogRepository_Create_NullableValues(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	ctx := context.Background()

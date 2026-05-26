@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { vatReturnApi, type VATReturn } from '$lib/api/client';
+	import { vatReturnApi, pcUrl, type VATReturn } from '$lib/api/client';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
 	import { vatStatusLabels, filingTypeLabels } from '$lib/utils/vat';
@@ -28,6 +29,8 @@
 		loadData();
 	});
 
+	onCompanyChange(() => loadData());
+
 	async function loadData() {
 		loading = true;
 		error = null;
@@ -43,7 +46,11 @@
 	async function handleRecalculate() {
 		actionLoading = 'recalculate';
 		try {
-			vatReturn = await vatReturnApi.recalculate(returnId);
+			const result = await vatReturnApi.recalculate(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			vatReturn = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se přepočítat');
 		} finally {
@@ -54,7 +61,11 @@
 	async function handleGenerateXml() {
 		actionLoading = 'generate';
 		try {
-			vatReturn = await vatReturnApi.generateXml(returnId);
+			const result = await vatReturnApi.generateXml(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			vatReturn = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se generovat XML');
 		} finally {
@@ -65,7 +76,7 @@
 	async function handleDownloadXml() {
 		actionLoading = 'download';
 		try {
-			await downloadFile(`/api/v1/vat-returns/${returnId}/xml`, `dph-priznani-${returnId}.xml`);
+			await downloadFile(pcUrl(`/vat-returns/${returnId}/xml`), `dph-priznani-${returnId}.xml`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se stáhnout XML');
 		} finally {
@@ -81,7 +92,11 @@
 		showFileConfirm = false;
 		actionLoading = 'filed';
 		try {
-			vatReturn = await vatReturnApi.markFiled(returnId);
+			const result = await vatReturnApi.markFiled(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			vatReturn = result.data;
 			toastSuccess('Přiznání označeno jako podané');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se označit jako podané');

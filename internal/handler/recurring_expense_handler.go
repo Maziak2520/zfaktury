@@ -174,8 +174,14 @@ type generateRequest struct {
 
 // --- Handlers ---
 
-// Create handles POST /api/v1/recurring-expenses.
+// Create handles POST /api/v1/companies/{companyID}/recurring-expenses.
 func (h *RecurringExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req recurringExpenseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -188,7 +194,7 @@ func (h *RecurringExpenseHandler) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.svc.Create(r.Context(), re); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, re); err != nil {
 		slog.Error("failed to create recurring expense", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -197,11 +203,17 @@ func (h *RecurringExpenseHandler) Create(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusCreated, recurringExpenseFromDomain(re))
 }
 
-// List handles GET /api/v1/recurring-expenses.
+// List handles GET /api/v1/companies/{companyID}/recurring-expenses.
 func (h *RecurringExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	limit, offset := parsePagination(r)
 
-	items, total, err := h.svc.List(r.Context(), limit, offset)
+	items, total, err := h.svc.List(r.Context(), company.ID, limit, offset)
 	if err != nil {
 		slog.Error("failed to list recurring expenses", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list recurring expenses")
@@ -221,15 +233,21 @@ func (h *RecurringExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetByID handles GET /api/v1/recurring-expenses/{id}.
+// GetByID handles GET /api/v1/companies/{companyID}/recurring-expenses/{id}.
 func (h *RecurringExpenseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring expense ID")
 		return
 	}
 
-	re, err := h.svc.GetByID(r.Context(), id)
+	re, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get recurring expense", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "recurring expense not found")
@@ -239,8 +257,14 @@ func (h *RecurringExpenseHandler) GetByID(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, recurringExpenseFromDomain(re))
 }
 
-// Update handles PUT /api/v1/recurring-expenses/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/recurring-expenses/{id}.
 func (h *RecurringExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring expense ID")
@@ -260,7 +284,7 @@ func (h *RecurringExpenseHandler) Update(w http.ResponseWriter, r *http.Request)
 	}
 	re.ID = id
 
-	if err := h.svc.Update(r.Context(), re); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, re); err != nil {
 		slog.Error("failed to update recurring expense", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -269,15 +293,21 @@ func (h *RecurringExpenseHandler) Update(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, recurringExpenseFromDomain(re))
 }
 
-// Delete handles DELETE /api/v1/recurring-expenses/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/recurring-expenses/{id}.
 func (h *RecurringExpenseHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring expense ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete recurring expense", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "recurring expense not found")
 		return
@@ -286,15 +316,21 @@ func (h *RecurringExpenseHandler) Delete(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Activate handles POST /api/v1/recurring-expenses/{id}/activate.
+// Activate handles POST /api/v1/companies/{companyID}/recurring-expenses/{id}/activate.
 func (h *RecurringExpenseHandler) Activate(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring expense ID")
 		return
 	}
 
-	if err := h.svc.Activate(r.Context(), id); err != nil {
+	if err := h.svc.Activate(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to activate recurring expense", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -303,15 +339,21 @@ func (h *RecurringExpenseHandler) Activate(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Deactivate handles POST /api/v1/recurring-expenses/{id}/deactivate.
+// Deactivate handles POST /api/v1/companies/{companyID}/recurring-expenses/{id}/deactivate.
 func (h *RecurringExpenseHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid recurring expense ID")
 		return
 	}
 
-	if err := h.svc.Deactivate(r.Context(), id); err != nil {
+	if err := h.svc.Deactivate(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to deactivate recurring expense", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -320,8 +362,14 @@ func (h *RecurringExpenseHandler) Deactivate(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GeneratePending handles POST /api/v1/recurring-expenses/generate.
+// GeneratePending handles POST /api/v1/companies/{companyID}/recurring-expenses/generate.
 func (h *RecurringExpenseHandler) GeneratePending(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req generateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -352,7 +400,7 @@ func (h *RecurringExpenseHandler) GeneratePending(w http.ResponseWriter, r *http
 		return
 	}
 
-	count, err := h.svc.GeneratePending(r.Context(), asOfDate)
+	count, err := h.svc.GeneratePending(r.Context(), company.ID, asOfDate)
 	if err != nil {
 		slog.Error("failed to generate pending expenses", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to generate pending expenses")

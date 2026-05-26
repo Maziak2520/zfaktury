@@ -16,8 +16,8 @@ import (
 func setupInvoiceTestDB(t *testing.T) (*sql.DB, int64, int64) {
 	t.Helper()
 	db := testutil.NewTestDB(t)
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Test Customer"})
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Test Customer"})
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 	return db, customer.ID, seqID
 }
 
@@ -58,7 +58,7 @@ func TestInvoiceRepository_Create(t *testing.T) {
 
 	inv := makeRepoInvoice(customerID, seqID)
 
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestInvoiceRepository_GetByID(t *testing.T) {
 	ctx := context.Background()
 
 	// Update customer with more details for JOIN testing.
-	testutil.SeedContact(t, db, &domain.Contact{Name: "Customer B", ICO: "22222222"})
+	testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Customer B", ICO: "22222222"})
 
 	inv := makeRepoInvoice(customerID, seqID)
 	inv.Items = append(inv.Items, domain.InvoiceItem{
@@ -87,11 +87,11 @@ func TestInvoiceRepository_GetByID(t *testing.T) {
 	})
 	inv.CalculateTotals()
 
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, inv.ID)
+	got, err := repo.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestInvoiceRepository_GetByID_NotFound(t *testing.T) {
 	repo := NewInvoiceRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByID(ctx, 99999)
+	_, err := repo.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent invoice")
 	}
@@ -134,7 +134,7 @@ func TestInvoiceRepository_Update(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -146,11 +146,11 @@ func TestInvoiceRepository_Update(t *testing.T) {
 	}
 	inv.CalculateTotals()
 
-	if err := repo.Update(ctx, inv); err != nil {
+	if err := repo.Update(ctx, 1, inv); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, inv.ID)
+	got, err := repo.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -171,15 +171,15 @@ func TestInvoiceRepository_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := repo.Delete(ctx, inv.ID); err != nil {
+	if err := repo.Delete(ctx, 1, inv.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	_, err := repo.GetByID(ctx, inv.ID)
+	_, err := repo.GetByID(ctx, 1, inv.ID)
 	if err == nil {
 		t.Error("expected error when getting deleted invoice")
 	}
@@ -190,7 +190,7 @@ func TestInvoiceRepository_Delete_NotFound(t *testing.T) {
 	repo := NewInvoiceRepository(db)
 	ctx := context.Background()
 
-	err := repo.Delete(ctx, 99999)
+	err := repo.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent invoice")
 	}
@@ -203,10 +203,10 @@ func TestInvoiceRepository_List_All(t *testing.T) {
 
 	inv1 := makeRepoInvoice(customerID, seqID)
 	inv2 := makeRepoInvoice(customerID, seqID)
-	repo.Create(ctx, inv1)
-	repo.Create(ctx, inv2)
+	repo.Create(ctx, 1, inv1)
+	repo.Create(ctx, 1, inv2)
 
-	invoices, total, err := repo.List(ctx, domain.InvoiceFilter{})
+	invoices, total, err := repo.List(ctx, 1, domain.InvoiceFilter{})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -224,13 +224,13 @@ func TestInvoiceRepository_List_StatusFilter(t *testing.T) {
 	ctx := context.Background()
 
 	inv1 := makeRepoInvoice(customerID, seqID)
-	repo.Create(ctx, inv1)
+	repo.Create(ctx, 1, inv1)
 
 	inv2 := makeRepoInvoice(customerID, seqID)
-	repo.Create(ctx, inv2)
-	repo.UpdateStatus(ctx, inv2.ID, domain.InvoiceStatusSent)
+	repo.Create(ctx, 1, inv2)
+	repo.UpdateStatus(ctx, 1, inv2.ID, domain.InvoiceStatusSent)
 
-	invoices, total, err := repo.List(ctx, domain.InvoiceFilter{Status: domain.InvoiceStatusSent})
+	invoices, total, err := repo.List(ctx, 1, domain.InvoiceFilter{Status: domain.InvoiceStatusSent})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -247,13 +247,13 @@ func TestInvoiceRepository_List_SearchFilter(t *testing.T) {
 	repo := NewInvoiceRepository(db)
 	ctx := context.Background()
 
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Searchable Corp"})
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Searchable Corp"})
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	inv := makeRepoInvoice(customer.ID, seqID)
-	repo.Create(ctx, inv)
+	repo.Create(ctx, 1, inv)
 
-	invoices, total, err := repo.List(ctx, domain.InvoiceFilter{Search: "Searchable"})
+	invoices, total, err := repo.List(ctx, 1, domain.InvoiceFilter{Search: "Searchable"})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -271,13 +271,13 @@ func TestInvoiceRepository_UpdateStatus(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeRepoInvoice(customerID, seqID)
-	repo.Create(ctx, inv)
+	repo.Create(ctx, 1, inv)
 
-	if err := repo.UpdateStatus(ctx, inv.ID, domain.InvoiceStatusSent); err != nil {
+	if err := repo.UpdateStatus(ctx, 1, inv.ID, domain.InvoiceStatusSent); err != nil {
 		t.Fatalf("UpdateStatus() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, inv.ID)
+	got, err := repo.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -291,9 +291,9 @@ func TestInvoiceRepository_GetNextNumber(t *testing.T) {
 	repo := NewInvoiceRepository(db)
 	ctx := context.Background()
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
-	num1, err := repo.GetNextNumber(ctx, seqID)
+	num1, err := repo.GetNextNumber(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("GetNextNumber() error: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestInvoiceRepository_GetNextNumber(t *testing.T) {
 		t.Errorf("number = %q, want FV20260001", num1)
 	}
 
-	num2, err := repo.GetNextNumber(ctx, seqID)
+	num2, err := repo.GetNextNumber(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("GetNextNumber() second call error: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestInvoiceRepository_GetNextNumber_NotFound(t *testing.T) {
 	repo := NewInvoiceRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetNextNumber(ctx, 99999)
+	_, err := repo.GetNextNumber(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent sequence")
 	}
@@ -331,7 +331,7 @@ func TestInvoiceRepository_GetRelatedInvoices(t *testing.T) {
 
 	// Create the parent invoice.
 	parent := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, parent); err != nil {
+	if err := repo.Create(ctx, 1, parent); err != nil {
 		t.Fatalf("Create() parent error: %v", err)
 	}
 
@@ -340,7 +340,7 @@ func TestInvoiceRepository_GetRelatedInvoices(t *testing.T) {
 	creditNote.Type = domain.InvoiceTypeCreditNote
 	creditNote.RelatedInvoiceID = &parent.ID
 	creditNote.RelationType = domain.RelationTypeCreditNote
-	if err := repo.Create(ctx, creditNote); err != nil {
+	if err := repo.Create(ctx, 1, creditNote); err != nil {
 		t.Fatalf("Create() credit note error: %v", err)
 	}
 
@@ -348,17 +348,17 @@ func TestInvoiceRepository_GetRelatedInvoices(t *testing.T) {
 	settlement := makeRepoInvoice(customerID, seqID)
 	settlement.RelatedInvoiceID = &parent.ID
 	settlement.RelationType = domain.RelationTypeSettlement
-	if err := repo.Create(ctx, settlement); err != nil {
+	if err := repo.Create(ctx, 1, settlement); err != nil {
 		t.Fatalf("Create() settlement error: %v", err)
 	}
 
 	// Create an unrelated invoice (should NOT appear).
 	unrelated := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, unrelated); err != nil {
+	if err := repo.Create(ctx, 1, unrelated); err != nil {
 		t.Fatalf("Create() unrelated error: %v", err)
 	}
 
-	related, err := repo.GetRelatedInvoices(ctx, parent.ID)
+	related, err := repo.GetRelatedInvoices(ctx, 1, parent.ID)
 	if err != nil {
 		t.Fatalf("GetRelatedInvoices() error: %v", err)
 	}
@@ -385,11 +385,11 @@ func TestInvoiceRepository_GetRelatedInvoices_Empty(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	related, err := repo.GetRelatedInvoices(ctx, inv.ID)
+	related, err := repo.GetRelatedInvoices(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetRelatedInvoices() error: %v", err)
 	}
@@ -404,23 +404,23 @@ func TestInvoiceRepository_GetRelatedInvoices_ExcludesDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	parent := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, parent); err != nil {
+	if err := repo.Create(ctx, 1, parent); err != nil {
 		t.Fatalf("Create() parent error: %v", err)
 	}
 
 	child := makeRepoInvoice(customerID, seqID)
 	child.RelatedInvoiceID = &parent.ID
 	child.RelationType = domain.RelationTypeCreditNote
-	if err := repo.Create(ctx, child); err != nil {
+	if err := repo.Create(ctx, 1, child); err != nil {
 		t.Fatalf("Create() child error: %v", err)
 	}
 
 	// Soft-delete the child.
-	if err := repo.Delete(ctx, child.ID); err != nil {
+	if err := repo.Delete(ctx, 1, child.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	related, err := repo.GetRelatedInvoices(ctx, parent.ID)
+	related, err := repo.GetRelatedInvoices(ctx, 1, parent.ID)
 	if err != nil {
 		t.Fatalf("GetRelatedInvoices() error: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestInvoiceRepository_FindByRelatedInvoice(t *testing.T) {
 	ctx := context.Background()
 
 	parent := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, parent); err != nil {
+	if err := repo.Create(ctx, 1, parent); err != nil {
 		t.Fatalf("Create() parent error: %v", err)
 	}
 
@@ -443,12 +443,12 @@ func TestInvoiceRepository_FindByRelatedInvoice(t *testing.T) {
 	creditNote.Type = domain.InvoiceTypeCreditNote
 	creditNote.RelatedInvoiceID = &parent.ID
 	creditNote.RelationType = domain.RelationTypeCreditNote
-	if err := repo.Create(ctx, creditNote); err != nil {
+	if err := repo.Create(ctx, 1, creditNote); err != nil {
 		t.Fatalf("Create() credit note error: %v", err)
 	}
 
 	// Find credit note by relation.
-	found, err := repo.FindByRelatedInvoice(ctx, parent.ID, domain.RelationTypeCreditNote)
+	found, err := repo.FindByRelatedInvoice(ctx, 1, parent.ID, domain.RelationTypeCreditNote)
 	if err != nil {
 		t.Fatalf("FindByRelatedInvoice() error: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestInvoiceRepository_FindByRelatedInvoice(t *testing.T) {
 	}
 
 	// Search for a relation type that does not exist.
-	notFound, err := repo.FindByRelatedInvoice(ctx, parent.ID, domain.RelationTypeSettlement)
+	notFound, err := repo.FindByRelatedInvoice(ctx, 1, parent.ID, domain.RelationTypeSettlement)
 	if err != nil {
 		t.Fatalf("FindByRelatedInvoice() error: %v", err)
 	}
@@ -478,23 +478,23 @@ func TestInvoiceRepository_FindByRelatedInvoice_ExcludesDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	parent := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, parent); err != nil {
+	if err := repo.Create(ctx, 1, parent); err != nil {
 		t.Fatalf("Create() parent error: %v", err)
 	}
 
 	child := makeRepoInvoice(customerID, seqID)
 	child.RelatedInvoiceID = &parent.ID
 	child.RelationType = domain.RelationTypeSettlement
-	if err := repo.Create(ctx, child); err != nil {
+	if err := repo.Create(ctx, 1, child); err != nil {
 		t.Fatalf("Create() child error: %v", err)
 	}
 
 	// Soft-delete the child.
-	if err := repo.Delete(ctx, child.ID); err != nil {
+	if err := repo.Delete(ctx, 1, child.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	found, err := repo.FindByRelatedInvoice(ctx, parent.ID, domain.RelationTypeSettlement)
+	found, err := repo.FindByRelatedInvoice(ctx, 1, parent.ID, domain.RelationTypeSettlement)
 	if err != nil {
 		t.Fatalf("FindByRelatedInvoice() error: %v", err)
 	}
@@ -521,11 +521,11 @@ func TestInvoiceRepository_List_DateFilter(t *testing.T) {
 
 	// Create a recent invoice.
 	inv := makeRepoInvoice(customerID, seqID)
-	repo.Create(ctx, inv)
+	repo.Create(ctx, 1, inv)
 
 	// Filter from 1 month ago (should exclude 3-month-old one).
 	dateFrom := now.AddDate(0, -1, 0)
-	invoices, total, err := repo.List(ctx, domain.InvoiceFilter{DateFrom: &dateFrom})
+	invoices, total, err := repo.List(ctx, 1, domain.InvoiceFilter{DateFrom: &dateFrom})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}

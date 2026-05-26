@@ -39,6 +39,7 @@ func setupEmailRouter(t *testing.T) *chi.Mux {
 	h := NewEmailHandler(invoiceSvc, settingsSvc, pdfGen, isdocGen, sender)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Post("/api/v1/invoices/{id}/send-email", h.SendEmail)
 	return r
 }
@@ -133,12 +134,13 @@ func setupEmailConfiguredRouter(t *testing.T) (*chi.Mux, int64) {
 	invoiceHandler := NewInvoiceHandler(invoiceSvc, nil, nil, nil)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/contacts", contactHandler.Routes())
 	r.Mount("/api/v1/invoices", invoiceHandler.Routes())
 	r.Post("/api/v1/invoices/{id}/send-email", h.SendEmail)
 
 	// Seed an invoice sequence.
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	return r, seqID
 }

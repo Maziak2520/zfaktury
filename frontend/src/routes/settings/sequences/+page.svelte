@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { sequencesApi, type InvoiceSequence } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
@@ -33,6 +34,8 @@
 	onMount(() => {
 		loadSequences();
 	});
+
+	onCompanyChange(() => loadSequences());
 
 	async function loadSequences() {
 		loading = true;

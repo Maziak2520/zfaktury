@@ -7,6 +7,7 @@
 		type TaxConstants
 	} from '$lib/api/client';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toastSuccess, toastError } from '$lib/data/toast-state.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Card from '$lib/ui/Card.svelte';
@@ -140,6 +141,8 @@
 		if (!mounted) return;
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 </script>
 
 <svelte:head>

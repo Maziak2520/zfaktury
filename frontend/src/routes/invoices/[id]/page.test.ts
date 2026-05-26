@@ -93,7 +93,7 @@ describe('Invoice detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/invoices/1',
+				'/api/v1/companies/1/invoices/1',
 				expect.objectContaining({ method: 'GET' })
 			);
 		});
@@ -193,7 +193,7 @@ describe('Invoice detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/invoices/1',
+				'/api/v1/companies/1/invoices/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});
@@ -218,7 +218,7 @@ describe('Invoice detail page', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/invoices/1/duplicate',
+				'/api/v1/companies/1/invoices/1/duplicate',
 				expect.objectContaining({ method: 'POST' })
 			);
 		});

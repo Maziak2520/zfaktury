@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { categoriesApi, type ExpenseCategory } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
@@ -32,6 +33,8 @@
 	onMount(() => {
 		loadCategories();
 	});
+
+	onCompanyChange(() => loadCategories());
 
 	async function loadCategories() {
 		loading = true;

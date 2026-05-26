@@ -12,6 +12,7 @@
 		type ExpenseDocument,
 		type OCRResult
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toHalere, fromHalere } from '$lib/utils/money';
 	import type { FormItem } from '$lib/components/InvoiceItemsEditor.svelte';
 	import ExpenseEditForm from '$lib/components/expense/ExpenseEditForm.svelte';
@@ -61,6 +62,11 @@
 	let vatAmount = $derived((form.amount * form.vat_rate_percent) / (100 + form.vat_rate_percent));
 
 	onMount(() => {
+		loadExpense();
+		loadDocuments();
+	});
+
+	onCompanyChange(() => {
 		loadExpense();
 		loadDocuments();
 	});
@@ -209,7 +215,8 @@
 	async function handleOcr(docId: number) {
 		ocrProcessing = true;
 		try {
-			ocrResult = await ocrApi.processDocument(docId);
+			const result = await ocrApi.processDocument(docId);
+			ocrResult = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'OCR zpracování selhalo');
 		} finally {

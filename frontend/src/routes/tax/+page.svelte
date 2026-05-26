@@ -11,6 +11,7 @@
 		type TaxConstants
 	} from '$lib/api/client';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import Button from '$lib/ui/Button.svelte';
 	import Card from '$lib/ui/Card.svelte';
@@ -59,6 +60,8 @@
 		if (!mounted) return;
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 
 	const statusLabels: Record<string, string> = {
 		draft: 'Koncept',

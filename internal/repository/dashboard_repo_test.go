@@ -30,13 +30,13 @@ func TestDashboardRepo_RevenueCurrentMonth_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// Seed two invoices with current month delivery date (SeedInvoice uses time.Now()).
-	inv1 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv1 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item A", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 	})
-	inv2 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv2 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item B", Quantity: 200, UnitPrice: 5000, VATRatePercent: 21},
 	})
 
@@ -88,13 +88,13 @@ func TestDashboardRepo_UnpaidInvoices_WithData(t *testing.T) {
 	repo := NewDashboardRepository(db)
 	ctx := context.Background()
 
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// SeedInvoice creates draft invoices by default (unpaid).
-	inv1 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv1 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 	})
-	inv2 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv2 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item", Quantity: 100, UnitPrice: 20000, VATRatePercent: 21},
 	})
 
@@ -105,7 +105,7 @@ func TestDashboardRepo_UnpaidInvoices_WithData(t *testing.T) {
 	}
 
 	// Create a paid invoice that should NOT be counted.
-	inv3 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv3 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item", Quantity: 100, UnitPrice: 50000, VATRatePercent: 21},
 	})
 	_, err = db.ExecContext(ctx, "UPDATE invoices SET status = 'paid' WHERE id = ?", inv3.ID)
@@ -163,15 +163,15 @@ func TestDashboardRepo_MonthlyRevenue_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// Seed invoice in current month.
-	inv1 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv1 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 	})
 
 	// Seed invoice in a different month (2 months ago).
-	inv2 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv2 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item", Quantity: 100, UnitPrice: 20000, VATRatePercent: 21},
 	})
 	twoMonthsAgo := now.AddDate(0, -2, 0)
@@ -234,11 +234,11 @@ func TestDashboardRepo_RecentInvoices_Limit(t *testing.T) {
 	repo := NewDashboardRepository(db)
 	ctx := context.Background()
 
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// Seed 5 invoices.
 	for i := 0; i < 5; i++ {
-		testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+		testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 			{Description: "Item", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 		})
 	}
@@ -273,13 +273,13 @@ func TestDashboardRepo_MonthlyExpenses_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Expense A",
 		Amount:      domain.NewAmount(500, 0),
 		IssueDate:   now,
 		Category:    "software",
 	})
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Expense B",
 		Amount:      domain.NewAmount(300, 0),
 		IssueDate:   now,
@@ -314,7 +314,7 @@ func TestDashboardRepo_RecentExpenses_WithData(t *testing.T) {
 
 	// Seed 3 expenses.
 	for i := 0; i < 3; i++ {
-		testutil.SeedExpense(t, db, &domain.Expense{
+		testutil.SeedExpense(t, db, 1, &domain.Expense{
 			Description: "Expense",
 			Amount:      domain.NewAmount(100, 0),
 			IssueDate:   time.Now(),

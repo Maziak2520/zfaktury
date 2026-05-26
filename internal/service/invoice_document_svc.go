@@ -27,8 +27,8 @@ func NewInvoiceDocumentService(repo repository.InvoiceDocumentRepo, dataDir stri
 	return &InvoiceDocumentService{repo: repo, dataDir: dataDir, audit: audit}
 }
 
-// Upload validates, stores, and registers a new document for an invoice.
-func (s *InvoiceDocumentService) Upload(ctx context.Context, invoiceID int64, filename string, contentType string, data []byte) (*domain.InvoiceDocument, error) {
+// Upload validates, stores, and registers a new document for an invoice within the given company.
+func (s *InvoiceDocumentService) Upload(ctx context.Context, companyID, invoiceID int64, filename string, contentType string, data []byte) (*domain.InvoiceDocument, error) {
 	if invoiceID == 0 {
 		return nil, fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
@@ -39,7 +39,7 @@ func (s *InvoiceDocumentService) Upload(ctx context.Context, invoiceID int64, fi
 	}
 
 	// Check per-invoice document limit.
-	count, err := s.repo.CountByInvoiceID(ctx, invoiceID)
+	count, err := s.repo.CountByInvoiceID(ctx, companyID, invoiceID)
 	if err != nil {
 		return nil, fmt.Errorf("checking document count: %w", err)
 	}
@@ -78,7 +78,7 @@ func (s *InvoiceDocumentService) Upload(ctx context.Context, invoiceID int64, fi
 		Size:        int64(len(data)),
 	}
 
-	if err := s.repo.Create(ctx, doc); err != nil {
+	if err := s.repo.Create(ctx, companyID, doc); err != nil {
 		_ = os.Remove(storagePath)
 		return nil, fmt.Errorf("saving document record: %w", err)
 	}
@@ -96,42 +96,42 @@ func (s *InvoiceDocumentService) Upload(ctx context.Context, invoiceID int64, fi
 	return doc, nil
 }
 
-// GetByID retrieves a document's metadata by its ID.
-func (s *InvoiceDocumentService) GetByID(ctx context.Context, id int64) (*domain.InvoiceDocument, error) {
+// GetByID retrieves a document's metadata by its ID within the given company.
+func (s *InvoiceDocumentService) GetByID(ctx context.Context, companyID, id int64) (*domain.InvoiceDocument, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("document ID is required: %w", domain.ErrInvalidInput)
 	}
-	doc, err := s.repo.GetByID(ctx, id)
+	doc, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching invoice document: %w", err)
 	}
 	return doc, nil
 }
 
-// ListByInvoiceID retrieves all active documents for an invoice.
-func (s *InvoiceDocumentService) ListByInvoiceID(ctx context.Context, invoiceID int64) ([]domain.InvoiceDocument, error) {
+// ListByInvoiceID retrieves all active documents for an invoice within the given company.
+func (s *InvoiceDocumentService) ListByInvoiceID(ctx context.Context, companyID, invoiceID int64) ([]domain.InvoiceDocument, error) {
 	if invoiceID == 0 {
 		return nil, fmt.Errorf("invoice ID is required: %w", domain.ErrInvalidInput)
 	}
-	docs, err := s.repo.ListByInvoiceID(ctx, invoiceID)
+	docs, err := s.repo.ListByInvoiceID(ctx, companyID, invoiceID)
 	if err != nil {
 		return nil, fmt.Errorf("listing documents for invoice: %w", err)
 	}
 	return docs, nil
 }
 
-// Delete soft-deletes the document record and removes the file from disk.
-func (s *InvoiceDocumentService) Delete(ctx context.Context, id int64) error {
+// Delete soft-deletes the document record and removes the file from disk within the given company.
+func (s *InvoiceDocumentService) Delete(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("document ID is required: %w", domain.ErrInvalidInput)
 	}
 
-	doc, err := s.repo.GetByID(ctx, id)
+	doc, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return fmt.Errorf("getting document before delete: %w", err)
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, companyID, id); err != nil {
 		return fmt.Errorf("soft-deleting document record: %w", err)
 	}
 
@@ -146,12 +146,13 @@ func (s *InvoiceDocumentService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetFilePath returns the filesystem path and content type for serving a document.
-func (s *InvoiceDocumentService) GetFilePath(ctx context.Context, id int64) (string, string, error) {
+// GetFilePath returns the filesystem path and content type for serving a document
+// within the given company.
+func (s *InvoiceDocumentService) GetFilePath(ctx context.Context, companyID, id int64) (string, string, error) {
 	if id == 0 {
 		return "", "", fmt.Errorf("document ID is required: %w", domain.ErrInvalidInput)
 	}
-	doc, err := s.repo.GetByID(ctx, id)
+	doc, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return "", "", fmt.Errorf("fetching document for file path: %w", err)
 	}

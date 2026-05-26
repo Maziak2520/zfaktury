@@ -4,9 +4,11 @@
 	import { onMount } from 'svelte';
 	import {
 		controlStatementApi,
+		pcUrl,
 		type ControlStatement,
 		type ControlStatementLine
 	} from '$lib/api/client';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
 	import { vatStatusLabels, filingTypeLabels } from '$lib/utils/vat';
@@ -47,6 +49,8 @@
 		loadStatement();
 	});
 
+	onCompanyChange(() => loadStatement());
+
 	async function loadStatement() {
 		loading = true;
 		error = null;
@@ -62,7 +66,11 @@
 	async function handleRecalculate() {
 		actionLoading = true;
 		try {
-			statement = await controlStatementApi.recalculate(statementId);
+			const result = await controlStatementApi.recalculate(statementId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			statement = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se přepočítat');
 		} finally {
@@ -73,7 +81,11 @@
 	async function handleGenerateXml() {
 		actionLoading = true;
 		try {
-			statement = await controlStatementApi.generateXml(statementId);
+			const result = await controlStatementApi.generateXml(statementId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			statement = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se generovat XML');
 		} finally {
@@ -84,7 +96,7 @@
 	async function handleDownloadXml() {
 		try {
 			const filename = `kontrolni-hlaseni-${statement?.period.year}-${String(statement?.period.month).padStart(2, '0')}.xml`;
-			await downloadFile(`/api/v1/vat-control-statements/${statementId}/xml`, filename);
+			await downloadFile(pcUrl(`/vat-control-statements/${statementId}/xml`), filename);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se stáhnout XML');
 		}
@@ -98,7 +110,11 @@
 		showFileConfirm = false;
 		actionLoading = true;
 		try {
-			statement = await controlStatementApi.markFiled(statementId);
+			const result = await controlStatementApi.markFiled(statementId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			statement = result.data;
 			toastSuccess('Kontrolní hlášení označeno jako podané');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se označit jako podané');

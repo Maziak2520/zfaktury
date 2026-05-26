@@ -10,6 +10,7 @@
 		type ControlStatement,
 		type VIESSummary
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { vatStatusLabels, monthLabels, quarters } from '$lib/utils/vat';
 	import Button from '$lib/ui/Button.svelte';
 	import Card from '$lib/ui/Card.svelte';
@@ -100,6 +101,8 @@
 		if (!mounted) return;
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 
 	function isQuarterEnd(month: number): boolean {
 		return month === 3 || month === 6 || month === 9 || month === 12;

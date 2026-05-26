@@ -13,7 +13,7 @@ func TestInvoiceRepository_ListOverdueCandidateIDs(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	ctx := context.Background()
 
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Overdue Test Customer"})
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Overdue Test Customer"})
 	repo := NewInvoiceRepository(db)
 
 	items := []domain.InvoiceItem{
@@ -21,28 +21,28 @@ func TestInvoiceRepository_ListOverdueCandidateIDs(t *testing.T) {
 	}
 
 	// Create a 'sent' invoice with past due date.
-	inv1 := testutil.SeedInvoice(t, db, customer.ID, items)
+	inv1 := testutil.SeedInvoice(t, db, 1, customer.ID, items)
 	_, err := db.ExecContext(ctx, `UPDATE invoices SET status = 'sent', due_date = '2026-01-01' WHERE id = ?`, inv1.ID)
 	if err != nil {
 		t.Fatalf("updating invoice: %v", err)
 	}
 
 	// Create a 'sent' invoice with future due date.
-	inv2 := testutil.SeedInvoice(t, db, customer.ID, items)
+	inv2 := testutil.SeedInvoice(t, db, 1, customer.ID, items)
 	_, err = db.ExecContext(ctx, `UPDATE invoices SET status = 'sent', due_date = '2026-12-31' WHERE id = ?`, inv2.ID)
 	if err != nil {
 		t.Fatalf("updating invoice: %v", err)
 	}
 
 	// Create a 'draft' invoice with past due date (should NOT be a candidate).
-	inv3 := testutil.SeedInvoice(t, db, customer.ID, items)
+	inv3 := testutil.SeedInvoice(t, db, 1, customer.ID, items)
 	_, err = db.ExecContext(ctx, `UPDATE invoices SET status = 'draft', due_date = '2026-01-01' WHERE id = ?`, inv3.ID)
 	if err != nil {
 		t.Fatalf("updating invoice: %v", err)
 	}
 
 	beforeDate := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	ids, err := repo.ListOverdueCandidateIDs(ctx, beforeDate)
+	ids, err := repo.ListOverdueCandidateIDs(ctx, 1, beforeDate)
 	if err != nil {
 		t.Fatalf("listing overdue candidates: %v", err)
 	}

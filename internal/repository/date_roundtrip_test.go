@@ -44,11 +44,11 @@ func TestInvoiceDateRoundtrip(t *testing.T) {
 	}
 	inv.CalculateTotals()
 
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, inv.ID)
+	got, err := repo.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestInvoiceUpdateDateRoundtrip(t *testing.T) {
 	ctx := context.Background()
 
 	inv := makeRepoInvoice(customerID, seqID)
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -94,11 +94,11 @@ func TestInvoiceUpdateDateRoundtrip(t *testing.T) {
 	inv.IssueDate = newIssueDate
 	inv.DueDate = newDueDate
 
-	if err := repo.Update(ctx, inv); err != nil {
+	if err := repo.Update(ctx, 1, inv); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, inv.ID)
+	got, err := repo.GetByID(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -119,11 +119,11 @@ func TestInvoiceListDateRoundtrip(t *testing.T) {
 	issueDate := time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)
 	inv := makeRepoInvoice(customerID, seqID)
 	inv.IssueDate = issueDate
-	if err := repo.Create(ctx, inv); err != nil {
+	if err := repo.Create(ctx, 1, inv); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	invoices, _, err := repo.List(ctx, domain.InvoiceFilter{})
+	invoices, _, err := repo.List(ctx, 1, domain.InvoiceFilter{})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -155,11 +155,11 @@ func TestExpenseDateRoundtrip(t *testing.T) {
 		PaymentMethod:   "bank_transfer",
 	}
 
-	if err := repo.Create(ctx, e); err != nil {
+	if err := repo.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, e.ID)
+	got, err := repo.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -179,16 +179,16 @@ func TestExpenseUpdateDateRoundtrip(t *testing.T) {
 	repo := NewExpenseRepository(db)
 	ctx := context.Background()
 
-	seeded := testutil.SeedExpense(t, db, &domain.Expense{Description: "Update date test"})
+	seeded := testutil.SeedExpense(t, db, 1, &domain.Expense{Description: "Update date test"})
 
 	newIssueDate := time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC)
 	seeded.IssueDate = newIssueDate
 
-	if err := repo.Update(ctx, seeded); err != nil {
+	if err := repo.Update(ctx, 1, seeded); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, seeded.ID)
+	got, err := repo.GetByID(ctx, 1, seeded.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -213,11 +213,11 @@ func TestContactDateRoundtrip(t *testing.T) {
 		VATUnreliableAt: &vatAt,
 	}
 
-	if err := repo.Create(ctx, c); err != nil {
+	if err := repo.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, c.ID)
+	got, err := repo.GetByID(ctx, 1, c.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -245,17 +245,17 @@ func TestContactUpdateDateRoundtrip(t *testing.T) {
 		Name:    "Update Date Test",
 		Country: "CZ",
 	}
-	if err := repo.Create(ctx, c); err != nil {
+	if err := repo.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	vatAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	c.VATUnreliableAt = &vatAt
-	if err := repo.Update(ctx, c); err != nil {
+	if err := repo.Update(ctx, 1, c); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, c.ID)
+	got, err := repo.GetByID(ctx, 1, c.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestDocumentDateRoundtrip(t *testing.T) {
 	repo := NewDocumentRepository(db)
 	ctx := context.Background()
 
-	expense := testutil.SeedExpense(t, db, nil)
+	expense := testutil.SeedExpense(t, db, 1, nil)
 	doc := &domain.ExpenseDocument{
 		ExpenseID:   expense.ID,
 		Filename:    "date_test.pdf",
@@ -284,11 +284,11 @@ func TestDocumentDateRoundtrip(t *testing.T) {
 		Size:        512,
 	}
 
-	if err := repo.Create(ctx, doc); err != nil {
+	if err := repo.Create(ctx, 1, doc); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, doc.ID)
+	got, err := repo.GetByID(ctx, 1, doc.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -310,11 +310,11 @@ func TestCategoryDateRoundtrip(t *testing.T) {
 		LabelEN: "Date test",
 	}
 
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, cat.ID)
+	got, err := repo.GetByID(ctx, 1, cat.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestCategoryDateRoundtrip(t *testing.T) {
 // TestRecurringInvoiceDateRoundtrip verifies all date fields on recurring invoices.
 func TestRecurringInvoiceDateRoundtrip(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Date Test Customer"})
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Date Test Customer"})
 	repo := NewRecurringInvoiceRepository(db)
 	ctx := context.Background()
 
@@ -349,11 +349,11 @@ func TestRecurringInvoiceDateRoundtrip(t *testing.T) {
 		},
 	}
 
-	if err := repo.Create(ctx, ri); err != nil {
+	if err := repo.Create(ctx, 1, ri); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, ri.ID)
+	got, err := repo.GetByID(ctx, 1, ri.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -393,11 +393,11 @@ func TestRecurringExpenseDateRoundtrip(t *testing.T) {
 		PaymentMethod:   "bank_transfer",
 	}
 
-	if err := repo.Create(ctx, re); err != nil {
+	if err := repo.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, re.ID)
+	got, err := repo.GetByID(ctx, 1, re.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}

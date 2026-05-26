@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { incomeTaxApi } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { toastError } from '$lib/data/toast-state.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import FormActions from '$lib/ui/FormActions.svelte';
@@ -29,7 +30,10 @@
 				year: form.year,
 				filing_type: form.filing_type
 			});
-			goto(`/tax/income/${result.id}`);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			goto(`/tax/income/${result.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se vytvořit daňové přiznání');
 		} finally {

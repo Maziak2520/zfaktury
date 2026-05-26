@@ -9,6 +9,7 @@
 		type TaxConstants
 	} from '$lib/api/client';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { fromHalere, toHalere } from '$lib/utils/money';
 	import { toastError } from '$lib/data/toast-state.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -292,8 +293,9 @@
 	async function extractAmount(docId: number) {
 		saving = true;
 		try {
-			const result: TaxExtractionResult = await taxDeductionsApi.extractDocument(docId);
-			if (result.amount_czk > 0) {
+			const result = await taxDeductionsApi.extractDocument(docId);
+			const extraction: TaxExtractionResult = result.data;
+			if (extraction.amount_czk > 0) {
 				await loadData();
 			}
 		} catch (e) {
@@ -338,6 +340,8 @@
 		if (!mounted) return;
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 </script>
 
 <svelte:head>

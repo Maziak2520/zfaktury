@@ -26,6 +26,7 @@ func setupStatusHistoryRouter(t *testing.T) (*chi.Mux, *repository.StatusHistory
 	handler := NewStatusHistoryHandler(overdueSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/api/v1/invoices/{id}/history", handler.GetHistory)
 	r.Post("/api/v1/invoices/check-overdue", handler.CheckOverdue)
 
@@ -36,8 +37,8 @@ func TestStatusHistoryHandler_GetHistory(t *testing.T) {
 	r, historyRepo, db := setupStatusHistoryRouter(t)
 	ctx := context.Background()
 
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Handler Test Customer"})
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Handler Test Customer"})
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Work", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 
@@ -49,7 +50,7 @@ func TestStatusHistoryHandler_GetHistory(t *testing.T) {
 		ChangedAt: inv.CreatedAt,
 		Note:      "sent via email",
 	}
-	if err := historyRepo.Create(ctx, change); err != nil {
+	if err := historyRepo.Create(ctx, 1, change); err != nil {
 		t.Fatalf("creating history: %v", err)
 	}
 
@@ -88,8 +89,8 @@ func TestStatusHistoryHandler_GetHistory_InvalidID(t *testing.T) {
 func TestStatusHistoryHandler_CheckOverdue(t *testing.T) {
 	r, _, db := setupStatusHistoryRouter(t)
 
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Overdue Handler Customer"})
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Overdue Handler Customer"})
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Work", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 	_, err := db.ExecContext(context.Background(), `UPDATE invoices SET status = 'sent', due_date = '2026-01-01' WHERE id = ?`, inv.ID)

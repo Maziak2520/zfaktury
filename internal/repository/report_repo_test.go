@@ -29,15 +29,15 @@ func TestReportRepo_MonthlyRevenue_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// Seed invoice in current month.
-	inv1 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv1 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item A", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 	})
 
 	// Seed another invoice in a different month (3 months ago).
-	inv2 := testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	inv2 := testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Item B", Quantity: 200, UnitPrice: 5000, VATRatePercent: 21},
 	})
 	threeMonthsAgo := now.AddDate(0, -3, 0)
@@ -161,19 +161,19 @@ func TestReportRepo_CategoryExpenses_WithData(t *testing.T) {
 	now := time.Now()
 
 	// Seed expenses in different categories with current year dates.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Office rent",
 		Category:    "rent",
 		Amount:      domain.NewAmount(15000, 0),
 		IssueDate:   now,
 	})
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "More rent",
 		Category:    "rent",
 		Amount:      domain.NewAmount(15000, 0),
 		IssueDate:   now,
 	})
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Train ticket",
 		Category:    "travel",
 		Amount:      domain.NewAmount(2000, 0),
@@ -227,19 +227,19 @@ func TestReportRepo_TopCustomers_WithData(t *testing.T) {
 	now := time.Now()
 
 	// Create two customers.
-	customer1 := testutil.SeedContact(t, db, &domain.Contact{Name: "Big Customer"})
-	customer2 := testutil.SeedContact(t, db, &domain.Contact{Name: "Small Customer"})
+	customer1 := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Big Customer"})
+	customer2 := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Small Customer"})
 
 	// Seed 2 invoices for customer1 (higher total).
-	testutil.SeedInvoice(t, db, customer1.ID, []domain.InvoiceItem{
+	testutil.SeedInvoice(t, db, 1, customer1.ID, []domain.InvoiceItem{
 		{Description: "Big project", Quantity: 100, UnitPrice: 50000, VATRatePercent: 21},
 	})
-	testutil.SeedInvoice(t, db, customer1.ID, []domain.InvoiceItem{
+	testutil.SeedInvoice(t, db, 1, customer1.ID, []domain.InvoiceItem{
 		{Description: "Another project", Quantity: 100, UnitPrice: 30000, VATRatePercent: 21},
 	})
 
 	// Seed 1 invoice for customer2 (lower total).
-	testutil.SeedInvoice(t, db, customer2.ID, []domain.InvoiceItem{
+	testutil.SeedInvoice(t, db, 1, customer2.ID, []domain.InvoiceItem{
 		{Description: "Small project", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 	})
 
@@ -272,9 +272,9 @@ func TestReportRepo_QuarterlyRevenue_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
-	testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Q service", Quantity: 100, UnitPrice: 10000, VATRatePercent: 21},
 	})
 
@@ -293,7 +293,7 @@ func TestReportRepo_MonthlyExpenses_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Expense",
 		Amount:      domain.NewAmount(1000, 0),
 		IssueDate:   now,
@@ -315,7 +315,7 @@ func TestReportRepo_QuarterlyExpenses_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Q expense",
 		Amount:      domain.NewAmount(500, 0),
 		IssueDate:   now,
@@ -337,12 +337,12 @@ func TestReportRepo_ProfitLossMonthly_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now()
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
-	testutil.SeedInvoice(t, db, contact.ID, []domain.InvoiceItem{
+	testutil.SeedInvoice(t, db, 1, contact.ID, []domain.InvoiceItem{
 		{Description: "Revenue item", Quantity: 100, UnitPrice: 20000, VATRatePercent: 21},
 	})
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description: "Cost item",
 		Amount:      domain.NewAmount(5000, 0),
 		IssueDate:   now,

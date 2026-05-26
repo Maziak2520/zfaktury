@@ -7,12 +7,13 @@ import (
 )
 
 // ListOverdueCandidateIDs returns IDs of invoices that are in 'sent' status
-// with a due_date before the given date and not soft-deleted.
-func (r *InvoiceRepository) ListOverdueCandidateIDs(ctx context.Context, beforeDate time.Time) ([]int64, error) {
+// with a due_date before the given date and not soft-deleted, scoped to the
+// given company.
+func (r *InvoiceRepository) ListOverdueCandidateIDs(ctx context.Context, companyID int64, beforeDate time.Time) ([]int64, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id FROM invoices
-		WHERE status = 'sent' AND due_date < ? AND deleted_at IS NULL`,
-		beforeDate.Format("2006-01-02"),
+		WHERE status = 'sent' AND due_date < ? AND company_id = ? AND deleted_at IS NULL`,
+		beforeDate.Format("2006-01-02"), companyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing overdue candidate invoices: %w", err)

@@ -10,6 +10,7 @@
 		TaxCalendar,
 		MonthlyAmount
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import Card from '$lib/ui/Card.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
@@ -156,6 +157,8 @@
 		if (!mounted) return;
 		loadTabData();
 	});
+
+	onCompanyChange(() => loadTabData());
 
 	// --- Derived chart data ---
 

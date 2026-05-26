@@ -54,8 +54,8 @@ describe('DocumentList', () => {
 
 		const links = screen.getAllByTitle('Stáhnout');
 		expect(links).toHaveLength(2);
-		expect(links[0]).toHaveAttribute('href', '/api/v1/documents/1/download');
-		expect(links[1]).toHaveAttribute('href', '/api/v1/documents/2/download');
+		expect(links[0]).toHaveAttribute('href', '/api/v1/companies/1/documents/1/download');
+		expect(links[1]).toHaveAttribute('href', '/api/v1/companies/1/documents/2/download');
 	});
 
 	it('delete button triggers confirmation and calls delete API', async () => {
@@ -84,7 +84,7 @@ describe('DocumentList', () => {
 
 		// Verify DELETE call
 		const [url, options] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/documents/1');
+		expect(url).toBe('/api/v1/companies/1/documents/1');
 		expect(options.method).toBe('DELETE');
 
 		await waitFor(() => {

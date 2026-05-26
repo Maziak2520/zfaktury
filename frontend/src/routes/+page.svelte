@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { dashboardApi } from '$lib/api/client';
 	import type { DashboardData } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { statusLabels, statusColors } from '$lib/utils/invoice';
 	import Card from '$lib/ui/Card.svelte';
@@ -56,7 +57,9 @@
 		}
 	}
 
-	onMount(async () => {
+	async function loadData() {
+		loading = true;
+		error = '';
 		try {
 			data = await dashboardApi.get();
 		} catch (e) {
@@ -64,7 +67,13 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	onMount(() => {
+		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 </script>
 
 <svelte:head>

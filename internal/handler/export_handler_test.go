@@ -32,6 +32,7 @@ func setupExportHandler(t *testing.T) (*ExportHandler, *chi.Mux) {
 	h := NewExportHandler(invoiceSvc, expenseSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/invoices", h.ExportInvoices)
 	r.Get("/expenses", h.ExportExpenses)
 
@@ -114,7 +115,7 @@ func TestExportHandler_ExportInvoices_WithData(t *testing.T) {
 	h := NewExportHandler(invoiceSvc, expenseSvc)
 
 	// Seed data.
-	contact := testutil.SeedContact(t, db, &domain.Contact{Name: "Export Test Corp"})
+	contact := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Export Test Corp"})
 	items := []domain.InvoiceItem{
 		{
 			Description:    "Development",
@@ -124,9 +125,10 @@ func TestExportHandler_ExportInvoices_WithData(t *testing.T) {
 			VATRatePercent: 21,
 		},
 	}
-	testutil.SeedInvoice(t, db, contact.ID, items)
+	testutil.SeedInvoice(t, db, 1, contact.ID, items)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/invoices", h.ExportInvoices)
 
 	req := httptest.NewRequest(http.MethodGet, "/invoices", nil)
@@ -183,6 +185,7 @@ func TestExportHandler_ExportInvoices_InvalidYear(t *testing.T) {
 	h := NewExportHandler(invoiceSvc, expenseSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/invoices", h.ExportInvoices)
 
 	req := httptest.NewRequest(http.MethodGet, "/invoices?year=abc", nil)
@@ -210,6 +213,7 @@ func TestExportHandler_ExportExpenses_Empty(t *testing.T) {
 	h := NewExportHandler(invoiceSvc, expenseSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/expenses", h.ExportExpenses)
 
 	req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
@@ -276,7 +280,7 @@ func TestExportHandler_ExportExpenses_WithData(t *testing.T) {
 	h := NewExportHandler(invoiceSvc, expenseSvc)
 
 	// Seed an expense in the current year.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		ExpenseNumber: "VY-2026-001",
 		Description:   "Office supplies",
 		Amount:        domain.NewAmount(250, 50),
@@ -286,6 +290,7 @@ func TestExportHandler_ExportExpenses_WithData(t *testing.T) {
 	})
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/expenses", h.ExportExpenses)
 
 	req := httptest.NewRequest(http.MethodGet, "/expenses", nil)

@@ -1,0 +1,458 @@
+package database
+
+import (
+	"database/sql"
+	"embed"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
+
+	"github.com/zajca/zfaktury/internal/database/testseed"
+)
+
+//go:embed testdata/v024_seed.sql
+var v024SeedFS embed.FS
+
+func TestMain(m *testing.M) {
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		panic("set goose dialect: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
+
+// migrateUpTo runs every migration in internal/database/migrations
+// up to and including the targetVersion.
+func migrateUpTo(t *testing.T, db *sql.DB, targetVersion int64) {
+	t.Helper()
+	if _, err := db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+		t.Fatalf("disable fk: %v", err)
+	}
+	if err := goose.UpTo(db, "migrations", targetVersion); err != nil {
+		t.Fatalf("goose up to %d: %v", targetVersion, err)
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		t.Fatalf("re-enable fk: %v", err)
+	}
+}
+
+func openMigratedDB(t *testing.T, applyV025 bool) *sql.DB {
+	t.Helper()
+	tmp := filepath.Join(t.TempDir(), "test.db")
+	db, err := sql.Open("sqlite", tmp+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	migrateUpTo(t, db, 24)
+
+	seed, err := v024SeedFS.ReadFile("testdata/v024_seed.sql")
+	if err != nil {
+		t.Fatalf("read seed: %v", err)
+	}
+	if _, err := db.Exec(string(seed)); err != nil {
+		t.Fatalf("apply seed: %v", err)
+	}
+
+	if applyV025 {
+		migrateUpTo(t, db, 25)
+	}
+	return db
+}
+
+func TestMultiCompanyMigration_CreatesDefaultCompanyFromSettings(t *testing.T) {
+	db := openMigratedDB(t, true)
+	var name, ico, dic string
+	var vat int
+	var accentColor sql.NullString
+	var logoPath sql.NullString
+	var createdAt, updatedAt string
+	err := db.QueryRow(`SELECT name, ico, dic, vat_registered, accent_color, logo_path, created_at, updated_at FROM companies WHERE id = 1`).
+		Scan(&name, &ico, &dic, &vat, &accentColor, &logoPath, &createdAt, &updatedAt)
+	if err != nil {
+		t.Fatalf("query company: %v", err)
+	}
+	if name != "Manas OSVČ" || ico != "12345678" || dic != "CZ12345678" || vat != 1 {
+		t.Errorf("got name=%q ico=%q dic=%q vat=%d", name, ico, dic, vat)
+	}
+	if !accentColor.Valid || accentColor.String != "#1a56db" {
+		t.Errorf("accent_color = %v, want '#1a56db'", accentColor)
+	}
+	if logoPath.Valid {
+		t.Errorf("logo_path = %v, want NULL (empty string seeded; NULLIF should drop it)", logoPath)
+	}
+	if _, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		t.Errorf("created_at = %q does not parse as RFC3339: %v", createdAt, err)
+	}
+	if _, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		t.Errorf("updated_at = %q does not parse as RFC3339: %v", updatedAt, err)
+	}
+}
+
+func TestMultiCompanyMigration_StripsIdentityKeysFromSettings(t *testing.T) {
+	db := openMigratedDB(t, true)
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key IN
+		('company_name','ico','dic','vat_registered','street','house_number','city','zip',
+		 'email','phone','first_name','last_name','bank_account','bank_code','iban','swift',
+		 'logo_path','accent_color')`).Scan(&n)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("found %d identity keys remaining in settings, want 0", n)
+	}
+}
+
+func TestMultiCompanyMigration_PreservesNonIdentitySettings(t *testing.T) {
+	db := openMigratedDB(t, true)
+	var v string
+	if err := db.QueryRow(`SELECT value FROM settings WHERE key = 'default_payment_method'`).Scan(&v); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if v != "bank_transfer" {
+		t.Errorf("value = %q, want bank_transfer", v)
+	}
+}
+
+func TestMultiCompanyMigration_FreshInstallProducesEmptyCompanies(t *testing.T) {
+	// Fresh install: no v024 seed applied.
+	tmp := filepath.Join(t.TempDir(), "fresh.db")
+	db, err := sql.Open("sqlite", tmp+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	migrateUpTo(t, db, 25)
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM companies`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("fresh install company count = %d, want 0", n)
+	}
+}
+
+func TestMultiCompanyMigration_BackfillsContactsToDefaultCompany(t *testing.T) {
+	db := openMigratedDB(t, true)
+	rows, err := db.Query(`SELECT id, company_id FROM contacts ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+	type row struct{ ID, CompanyID int64 }
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.ID, &r.CompanyID); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d contacts, want 2 from seed", len(got))
+	}
+	for _, r := range got {
+		if r.CompanyID != 1 {
+			t.Errorf("contact %d company_id = %d, want 1", r.ID, r.CompanyID)
+		}
+	}
+}
+
+func TestMultiCompanyMigration_BackfillsLeafEntitiesToDefaultCompany(t *testing.T) {
+	db := openMigratedDB(t, true)
+	// Tables the v024 seed populates with at least one row.
+	tables := []string{"invoices", "invoice_items", "expenses"}
+	for _, tbl := range tables {
+		t.Run(tbl, func(t *testing.T) {
+			var n, bad int
+			if err := db.QueryRow(`SELECT COUNT(*) FROM ` + tbl).Scan(&n); err != nil {
+				t.Fatalf("count: %v", err)
+			}
+			if n == 0 {
+				t.Skipf("seed populates 0 rows in %s", tbl)
+			}
+			if err := db.QueryRow(`SELECT COUNT(*) FROM ` + tbl + ` WHERE company_id != 1`).Scan(&bad); err != nil {
+				t.Fatalf("count bad: %v", err)
+			}
+			if bad != 0 {
+				t.Errorf("%s: %d rows with company_id != 1", tbl, bad)
+			}
+		})
+	}
+}
+
+func TestMultiCompanyMigration_AllPerCompanyTablesHaveColumn(t *testing.T) {
+	db := openMigratedDB(t, true)
+	tables := []string{
+		"contacts", "expense_categories",
+		"invoices", "invoice_items", "invoice_status_history", "invoice_documents",
+		"recurring_invoices", "recurring_invoice_items",
+		"expenses", "expense_items", "expense_documents",
+		"recurring_expenses",
+		"invoice_sequences",
+		"payment_reminders",
+		"tax_year_settings", "tax_prepayments",
+		"tax_spouse_credits", "tax_child_credits", "tax_personal_credits",
+		"tax_deductions", "tax_deduction_documents",
+		"vat_returns", "vat_return_invoices", "vat_return_expenses",
+		"vat_control_statements", "vat_control_statement_lines",
+		"vies_summaries", "vies_summary_lines",
+		"income_tax_returns", "income_tax_return_invoices", "income_tax_return_expenses",
+		"social_insurance_overviews", "health_insurance_overviews",
+		"investment_documents", "capital_income_entries", "security_transactions",
+		"fakturoid_import_log",
+		"settings",
+	}
+	for _, tbl := range tables {
+		t.Run(tbl, func(t *testing.T) {
+			rows, err := db.Query(`PRAGMA table_info(` + tbl + `)`)
+			if err != nil {
+				t.Fatalf("pragma: %v", err)
+			}
+			defer rows.Close()
+			has := false
+			for rows.Next() {
+				var cid int
+				var name, typ string
+				var notnull, pk int
+				var dflt sql.NullString
+				_ = rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk)
+				if name == "company_id" {
+					has = true
+				}
+			}
+			if !has {
+				t.Errorf("%s: missing company_id column", tbl)
+			}
+		})
+	}
+}
+
+// TestMultiCompanyMigrationProductionSized runs migration 025 against
+// a synthetic ~5k-invoice fixture and asserts completion under 30s.
+// Gated by the ZFAKTURY_RUN_BIG_MIGRATION_TEST environment variable
+// so it stays out of the default CI run; enable locally before merging
+// schema changes that touch existing migrations.
+func TestMultiCompanyMigrationProductionSized(t *testing.T) {
+	if os.Getenv("ZFAKTURY_RUN_BIG_MIGRATION_TEST") == "" {
+		t.Skip("set ZFAKTURY_RUN_BIG_MIGRATION_TEST=1 to enable")
+	}
+
+	tmp := filepath.Join(t.TempDir(), "big.db")
+	db, err := sql.Open("sqlite", tmp+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	migrateUpTo(t, db, 24)
+	if err := testseed.SeedProductionSized(db); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	start := time.Now()
+	migrateUpTo(t, db, 25)
+	elapsed := time.Since(start)
+
+	if elapsed > 30*time.Second {
+		t.Errorf("migration took %s, want < 30s", elapsed)
+	}
+	t.Logf("migration 025 over ~5k invoices / ~10k items / ~5k expenses: %s", elapsed)
+
+	// Row counts unchanged after the migration's rebuild path.
+	for _, c := range []struct {
+		table string
+		want  int
+	}{
+		{"invoices", 5000},
+		{"invoice_items", 10000},
+		{"expenses", 5000},
+		{"contacts", 2500},
+	} {
+		var n int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM ` + c.table).Scan(&n); err != nil {
+			t.Fatalf("count %s: %v", c.table, err)
+		}
+		if n != c.want {
+			t.Errorf("%s count = %d, want %d", c.table, n, c.want)
+		}
+	}
+
+	// Composite FK still enforced under load: an item in company 2 cannot
+	// attach to an invoice in company 1.
+	if _, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '88888888', strftime('%Y-%m-%dT%H:%M:%SZ','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now'))`); err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO invoice_items (invoice_id, company_id, description, quantity, unit_price, vat_rate_percent, vat_amount, total_amount)
+		VALUES (1, 2, 'leak', 1, 1, 0, 0, 1)`)
+	if err == nil {
+		t.Error("expected composite FK violation under production-sized load")
+	}
+}
+
+func TestMultiCompanyMigration_CompositeFK_RejectsCrossCompanyInvoiceItem(t *testing.T) {
+	db := openMigratedDB(t, true)
+
+	// Create a second company and an invoice owned by it.
+	_, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	// Use the actual invoices schema -- adapt column list if needed.
+	res, err := db.Exec(`INSERT INTO invoices (invoice_number, customer_id, company_id, issue_date, due_date, status, total_amount, created_at, updated_at)
+		VALUES ('B-001', 1, 2, '2026-04-01', '2026-04-15', 'sent', 100000, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert invoice in company 2: %v", err)
+	}
+	invID, _ := res.LastInsertId()
+
+	// Attempting to attach an invoice_item with mismatched company_id must fail at the FK level.
+	// Invoice belongs to company 2; item claims company 1.
+	_, err = db.Exec(`INSERT INTO invoice_items (invoice_id, company_id, description, quantity, unit_price, total_amount)
+		VALUES (?, 1, 'cross-company leak', 1, 100, 100)`, invID)
+	if err == nil {
+		t.Error("expected composite FK violation; invoice belongs to company 2 but item names company 1")
+	}
+}
+
+func TestMultiCompanyMigration_CompositeFK_RejectsCrossCompanyExpenseItem(t *testing.T) {
+	db := openMigratedDB(t, true)
+
+	// Create a second company and an expense owned by it.
+	_, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	// Use the actual expenses schema columns.
+	res, err := db.Exec(`INSERT INTO expenses (vendor_id, expense_number, company_id, issue_date, amount, description, created_at, updated_at)
+		VALUES (1, 'AL/2026/X', 2, '2026-04-01', 1000, 'cross-company test', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert expense in company 2: %v", err)
+	}
+	expID, _ := res.LastInsertId()
+
+	// Cross-company expense_items should be rejected by composite FK.
+	// Expense belongs to company 2; item claims company 1.
+	_, err = db.Exec(`INSERT INTO expense_items (expense_id, company_id, description, quantity, unit_price, total_amount)
+		VALUES (?, 1, 'cross-company leak', 1, 100, 100)`, expID)
+	if err == nil {
+		t.Error("expected composite FK violation; expense belongs to company 2 but item names company 1")
+	}
+}
+
+func TestMultiCompanyMigration_InvoiceSequencesUniquePerCompany(t *testing.T) {
+	db := openMigratedDB(t, true)
+
+	// The v024 seed put two sequences in the default company; both should still exist.
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM invoice_sequences WHERE company_id = 1`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("seeded sequences = %d, want 2", n)
+	}
+
+	// Insert a second company so we can test the new uniqueness rule.
+	if _, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`); err != nil {
+		t.Fatalf("insert company 2: %v", err)
+	}
+
+	// (company_id=2, prefix='FV', year=2026) should be allowed — partitioned by company.
+	if _, err := db.Exec(`INSERT INTO invoice_sequences (company_id, prefix, next_number, year, format_pattern)
+		VALUES (2, 'FV', 1, 2026, '{prefix}{year}{number:04d}')`); err != nil {
+		t.Errorf("company-partitioned sequence rejected: %v", err)
+	}
+
+	// A duplicate (company_id, prefix, year) must still fail.
+	_, err := db.Exec(`INSERT INTO invoice_sequences (company_id, prefix, next_number, year, format_pattern)
+		VALUES (1, 'FV', 99, 2026, 'x')`)
+	if err == nil {
+		t.Error("expected UNIQUE violation on duplicate (1, FV, 2026)")
+	}
+}
+
+func TestMultiCompanyMigration_VATReturnCompositeFK(t *testing.T) {
+	db := openMigratedDB(t, true)
+
+	// Create a second company and a VAT return owned by it.
+	_, err := db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+
+	res, err := db.Exec(`INSERT INTO vat_returns (company_id, year, quarter, status, created_at, updated_at)
+		VALUES (2, 2026, 1, 'draft', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert vat_return in company 2: %v", err)
+	}
+	vrID, _ := res.LastInsertId()
+
+	// Cross-company: vat_return in company 2, vat_return_invoices line claims company 1.
+	// Composite FK (company_id, vat_return_id) -> vat_returns(company_id, id) must reject.
+	_, err = db.Exec(`INSERT INTO vat_return_invoices (vat_return_id, company_id, invoice_id)
+		VALUES (?, 1, 1)`, vrID)
+	if err == nil {
+		t.Error("expected composite FK violation on vat_return_invoices; vat_return belongs to company 2 but line names company 1")
+	}
+
+	// Cross-company: vat_return in company 2, vat_return_expenses line claims company 1.
+	// Composite FK (company_id, vat_return_id) -> vat_returns(company_id, id) must reject.
+	_, err = db.Exec(`INSERT INTO vat_return_expenses (vat_return_id, company_id, expense_id)
+		VALUES (?, 1, 1)`, vrID)
+	if err == nil {
+		t.Error("expected composite FK violation on vat_return_expenses; vat_return belongs to company 2 but line names company 1")
+	}
+}
+
+func TestMultiCompanyMigration_SettingsPartitionedPerCompany(t *testing.T) {
+	db := openMigratedDB(t, true)
+	// The seed kept 'default_payment_method' (non-identity); it should now belong to company 1.
+	var cid int64
+	err := db.QueryRow(`SELECT company_id FROM settings WHERE key = 'default_payment_method'`).Scan(&cid)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if cid != 1 {
+		t.Errorf("default_payment_method company_id = %d, want 1", cid)
+	}
+
+	// Two companies can each have their own value under the same key.
+	_, err = db.Exec(`INSERT INTO companies (id, name, legal_name, ico, created_at, updated_at)
+		VALUES (2, 'B', 'B', '99999999', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`)
+	if err != nil {
+		t.Fatalf("insert company: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO settings (company_id, key, value) VALUES (2, 'default_payment_method', 'cash')`); err != nil {
+		t.Errorf("expected company-partitioned settings to allow same key in another company: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO settings (company_id, key, value) VALUES (1, 'default_payment_method', 'duplicate')`); err == nil {
+		t.Error("expected UNIQUE violation on duplicate (1, default_payment_method)")
+	}
+}
+
+func TestMultiCompanyMigration_AuditLogHasNullableCompanyID(t *testing.T) {
+	db := openMigratedDB(t, true)
+	// Inserting an audit row without company_id must succeed (column is nullable).
+	// Schema uses entity_type (not entity_kind) -- see migrations 001 and 021.
+	if _, err := db.Exec(`INSERT INTO audit_log (action, entity_type, entity_id, created_at)
+		VALUES ('system.boot', 'system', 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`); err != nil {
+		t.Errorf("nullable company_id rejected null: %v", err)
+	}
+	// And with a value, it must persist.
+	if _, err := db.Exec(`INSERT INTO audit_log (action, entity_type, entity_id, company_id, created_at)
+		VALUES ('company.create', 'company', 1, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`); err != nil {
+		t.Errorf("company_id value rejected: %v", err)
+	}
+}

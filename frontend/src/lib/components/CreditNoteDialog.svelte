@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invoicesApi, type Invoice } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { toastSuccess } from '$lib/data/toast-state.svelte';
 
 	interface Props {
@@ -26,11 +27,15 @@
 		error = null;
 
 		try {
-			const invoice = await invoicesApi.createCreditNote(invoiceId, {
+			const result = await invoicesApi.createCreditNote(invoiceId, {
 				reason: reason.trim()
 			});
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				onclose();
+				return;
+			}
 			toastSuccess('Dobropis vytvořen');
-			onsuccess(invoice);
+			onsuccess(result.data);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Nepodařilo se vytvořit dobropis';
 		} finally {

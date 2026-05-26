@@ -26,7 +26,7 @@ func TestSequenceService_Create_Valid(t *testing.T) {
 		Prefix: "FV",
 		Year:   2026,
 	}
-	if err := svc.Create(ctx, seq); err != nil {
+	if err := svc.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestSequenceService_Create_MissingPrefix(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{Year: 2026}
-	err := svc.Create(ctx, seq)
+	err := svc.Create(ctx, 1, seq)
 	if err == nil {
 		t.Error("expected error for missing prefix")
 	}
@@ -57,7 +57,7 @@ func TestSequenceService_Create_MissingYear(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{Prefix: "FV"}
-	err := svc.Create(ctx, seq)
+	err := svc.Create(ctx, 1, seq)
 	if err == nil {
 		t.Error("expected error for missing year")
 	}
@@ -68,12 +68,12 @@ func TestSequenceService_Create_DuplicatePrefixYear(t *testing.T) {
 	ctx := context.Background()
 
 	seq1 := &domain.InvoiceSequence{Prefix: "FV", Year: 2026}
-	if err := svc.Create(ctx, seq1); err != nil {
+	if err := svc.Create(ctx, 1, seq1); err != nil {
 		t.Fatalf("Create() first error: %v", err)
 	}
 
 	seq2 := &domain.InvoiceSequence{Prefix: "FV", Year: 2026}
-	err := svc.Create(ctx, seq2)
+	err := svc.Create(ctx, 1, seq2)
 	if err == nil {
 		t.Error("expected error for duplicate prefix+year")
 	}
@@ -87,12 +87,12 @@ func TestSequenceService_Update_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{Prefix: "FV", Year: 2026}
-	if err := svc.Create(ctx, seq); err != nil {
+	if err := svc.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	seq.NextNumber = 5
-	if err := svc.Update(ctx, seq); err != nil {
+	if err := svc.Update(ctx, 1, seq); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 }
@@ -102,7 +102,7 @@ func TestSequenceService_Update_PreventLoweringNextNumber(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{Prefix: "FV", Year: 2026, NextNumber: 5}
-	if err := svc.Create(ctx, seq); err != nil {
+	if err := svc.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -110,14 +110,14 @@ func TestSequenceService_Update_PreventLoweringNextNumber(t *testing.T) {
 	// The MaxUsedNumber returns next_number - 1 = 4.
 	// But we created with NextNumber=5, so after Create the DB value is 5.
 	// Let's read back from DB to get current state.
-	got, err := repo.GetByID(ctx, seq.ID)
+	got, err := repo.GetByID(ctx, 1, seq.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
 
 	// Try to set next_number to 3, which is below max used (4).
 	got.NextNumber = 3
-	err = svc.Update(ctx, got)
+	err = svc.Update(ctx, 1, got)
 	if err == nil {
 		t.Error("expected error when lowering next_number below used numbers")
 	}
@@ -131,16 +131,16 @@ func TestSequenceService_Delete_NoReferences(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{Prefix: "FV", Year: 2026}
-	if err := svc.Create(ctx, seq); err != nil {
+	if err := svc.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.Delete(ctx, seq.ID); err != nil {
+	if err := svc.Delete(ctx, 1, seq.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
 	// Verify deleted.
-	_, err := svc.GetByID(ctx, seq.ID)
+	_, err := svc.GetByID(ctx, 1, seq.ID)
 	if err == nil {
 		t.Error("expected error for soft-deleted sequence")
 	}
@@ -150,7 +150,7 @@ func TestSequenceService_Delete_ZeroID(t *testing.T) {
 	svc, _ := newSequenceTestStack(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 0)
+	err := svc.Delete(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -161,7 +161,7 @@ func TestSequenceService_Update_ZeroID(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{ID: 0, Prefix: "FV", Year: 2026, NextNumber: 1}
-	if err := svc.Update(ctx, seq); err == nil {
+	if err := svc.Update(ctx, 1, seq); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -171,7 +171,7 @@ func TestSequenceService_Update_MissingPrefix(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{ID: 1, Prefix: "", Year: 2026, NextNumber: 1}
-	if err := svc.Update(ctx, seq); err == nil {
+	if err := svc.Update(ctx, 1, seq); err == nil {
 		t.Error("expected error for empty prefix")
 	}
 }
@@ -181,7 +181,7 @@ func TestSequenceService_Update_MissingYear(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{ID: 1, Prefix: "FV", Year: 0, NextNumber: 1}
-	if err := svc.Update(ctx, seq); err == nil {
+	if err := svc.Update(ctx, 1, seq); err == nil {
 		t.Error("expected error for zero year")
 	}
 }
@@ -191,7 +191,7 @@ func TestSequenceService_Update_ZeroNextNumber(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{ID: 1, Prefix: "FV", Year: 2026, NextNumber: 0}
-	if err := svc.Update(ctx, seq); err == nil {
+	if err := svc.Update(ctx, 1, seq); err == nil {
 		t.Error("expected error for zero next_number")
 	}
 }
@@ -201,10 +201,10 @@ func TestSequenceService_GetByID_Success(t *testing.T) {
 	ctx := context.Background()
 
 	seq := &domain.InvoiceSequence{Prefix: "FV", Year: 2026}
-	if err := svc.Create(ctx, seq); err != nil {
+	if err := svc.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	got, err := svc.GetByID(ctx, seq.ID)
+	got, err := svc.GetByID(ctx, 1, seq.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestSequenceService_GetByID_ZeroID(t *testing.T) {
 	svc, _ := newSequenceTestStack(t)
 	ctx := context.Background()
 
-	if _, err := svc.GetByID(ctx, 0); err == nil {
+	if _, err := svc.GetByID(ctx, 1, 0); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -226,7 +226,7 @@ func TestSequenceService_GetOrCreateForYear_EmptyPrefix(t *testing.T) {
 	svc, _ := newSequenceTestStack(t)
 	ctx := context.Background()
 
-	if _, err := svc.GetOrCreateForYear(ctx, "", 2026); err == nil {
+	if _, err := svc.GetOrCreateForYear(ctx, 1, "", 2026); err == nil {
 		t.Error("expected error for empty prefix")
 	}
 }
@@ -235,7 +235,7 @@ func TestSequenceService_GetOrCreateForYear_ZeroYear(t *testing.T) {
 	svc, _ := newSequenceTestStack(t)
 	ctx := context.Background()
 
-	if _, err := svc.GetOrCreateForYear(ctx, "FV", 0); err == nil {
+	if _, err := svc.GetOrCreateForYear(ctx, 1, "FV", 0); err == nil {
 		t.Error("expected error for zero year")
 	}
 }
@@ -246,12 +246,12 @@ func TestSequenceService_GetOrCreateForYear_ExistingSequence(t *testing.T) {
 
 	// Create a sequence first.
 	seq := &domain.InvoiceSequence{Prefix: "FV", Year: 2026}
-	if err := svc.Create(ctx, seq); err != nil {
+	if err := svc.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	// GetOrCreate should return the existing one.
-	got, err := svc.GetOrCreateForYear(ctx, "FV", 2026)
+	got, err := svc.GetOrCreateForYear(ctx, 1, "FV", 2026)
 	if err != nil {
 		t.Fatalf("GetOrCreateForYear() error: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestSequenceService_GetOrCreateForYear_NewSequence(t *testing.T) {
 	svc, _ := newSequenceTestStack(t)
 	ctx := context.Background()
 
-	got, err := svc.GetOrCreateForYear(ctx, "ZF", 2027)
+	got, err := svc.GetOrCreateForYear(ctx, 1, "ZF", 2027)
 	if err != nil {
 		t.Fatalf("GetOrCreateForYear() error: %v", err)
 	}
@@ -286,10 +286,10 @@ func TestSequenceService_List(t *testing.T) {
 	svc, _ := newSequenceTestStack(t)
 	ctx := context.Background()
 
-	svc.Create(ctx, &domain.InvoiceSequence{Prefix: "FV", Year: 2025})
-	svc.Create(ctx, &domain.InvoiceSequence{Prefix: "FV", Year: 2026})
+	svc.Create(ctx, 1, &domain.InvoiceSequence{Prefix: "FV", Year: 2025})
+	svc.Create(ctx, 1, &domain.InvoiceSequence{Prefix: "FV", Year: 2026})
 
-	sequences, err := svc.List(ctx)
+	sequences, err := svc.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}

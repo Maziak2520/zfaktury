@@ -43,13 +43,19 @@ type invoiceDocumentResponse struct {
 
 // ListByInvoice handles GET /invoices/{id}/documents.
 func (h *InvoiceDocumentHandler) ListByInvoice(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	invoiceID, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid invoice ID")
 		return
 	}
 
-	docs, err := h.svc.ListByInvoiceID(r.Context(), invoiceID)
+	docs, err := h.svc.ListByInvoiceID(r.Context(), company.ID, invoiceID)
 	if err != nil {
 		slog.Error("failed to list invoice documents", "error", err, "invoice_id", invoiceID)
 		respondError(w, http.StatusInternalServerError, "failed to list documents")
@@ -66,13 +72,19 @@ func (h *InvoiceDocumentHandler) ListByInvoice(w http.ResponseWriter, r *http.Re
 
 // GetByID handles GET /invoice-documents/{id}.
 func (h *InvoiceDocumentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	doc, err := h.svc.GetByID(r.Context(), id)
+	doc, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice document", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "document not found")
@@ -84,13 +96,19 @@ func (h *InvoiceDocumentHandler) GetByID(w http.ResponseWriter, r *http.Request)
 
 // Download handles GET /invoice-documents/{id}/download.
 func (h *InvoiceDocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	doc, err := h.svc.GetByID(r.Context(), id)
+	doc, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice document", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "document not found")
@@ -111,13 +129,19 @@ func (h *InvoiceDocumentHandler) Download(w http.ResponseWriter, r *http.Request
 
 // Delete handles DELETE /invoice-documents/{id}.
 func (h *InvoiceDocumentHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete invoice document", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "document not found")
 		return

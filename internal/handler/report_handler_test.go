@@ -21,6 +21,7 @@ func TestReportHandler_Revenue_DefaultYear(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/revenue", h.Revenue)
 
 	req := httptest.NewRequest(http.MethodGet, "/revenue", nil)
@@ -55,7 +56,7 @@ func TestReportHandler_Revenue_WithYear(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	// Seed data for 2025.
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 	// Manually insert an invoice with delivery_date in 2025 via direct SQL.
 	_, err := db.Exec(`
 		INSERT INTO invoices (
@@ -74,6 +75,7 @@ func TestReportHandler_Revenue_WithYear(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/revenue", h.Revenue)
 
 	req := httptest.NewRequest(http.MethodGet, "/revenue?year=2025", nil)
@@ -104,6 +106,7 @@ func TestReportHandler_Revenue_InvalidYear(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/revenue", h.Revenue)
 
 	req := httptest.NewRequest(http.MethodGet, "/revenue?year=abc", nil)
@@ -122,6 +125,7 @@ func TestReportHandler_Revenue_OutOfRangeYear(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/revenue", h.Revenue)
 
 	req := httptest.NewRequest(http.MethodGet, "/revenue?year=1999", nil)
@@ -140,7 +144,7 @@ func TestReportHandler_Expenses_DefaultYear(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	// Seed an expense in the current year.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:  "Software license",
 		Amount:       domain.NewAmount(200, 0),
 		IssueDate:    time.Now(),
@@ -149,6 +153,7 @@ func TestReportHandler_Expenses_DefaultYear(t *testing.T) {
 	})
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/expenses", h.Expenses)
 
 	req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
@@ -186,8 +191,8 @@ func TestReportHandler_TopCustomers(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	// Seed contacts and invoices for current year.
-	contact1 := testutil.SeedContact(t, db, &domain.Contact{Name: "Alpha Corp"})
-	contact2 := testutil.SeedContact(t, db, &domain.Contact{Name: "Beta Inc"})
+	contact1 := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Alpha Corp"})
+	contact2 := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Beta Inc"})
 
 	items := []domain.InvoiceItem{
 		{
@@ -198,11 +203,12 @@ func TestReportHandler_TopCustomers(t *testing.T) {
 			VATRatePercent: 21,
 		},
 	}
-	testutil.SeedInvoice(t, db, contact1.ID, items)
-	testutil.SeedInvoice(t, db, contact1.ID, items)
-	testutil.SeedInvoice(t, db, contact2.ID, items)
+	testutil.SeedInvoice(t, db, 1, contact1.ID, items)
+	testutil.SeedInvoice(t, db, 1, contact1.ID, items)
+	testutil.SeedInvoice(t, db, 1, contact2.ID, items)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/top-customers", h.TopCustomers)
 
 	req := httptest.NewRequest(http.MethodGet, "/top-customers", nil)
@@ -241,7 +247,7 @@ func TestReportHandler_ProfitLoss(t *testing.T) {
 	h := NewReportHandler(reportSvc)
 
 	// Seed data for current year.
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 	items := []domain.InvoiceItem{
 		{
 			Description:    "Dev work",
@@ -251,8 +257,8 @@ func TestReportHandler_ProfitLoss(t *testing.T) {
 			VATRatePercent: 21,
 		},
 	}
-	testutil.SeedInvoice(t, db, contact.ID, items)
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedInvoice(t, db, 1, contact.ID, items)
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:  "Hosting",
 		Amount:       domain.NewAmount(300, 0),
 		IssueDate:    time.Now(),
@@ -261,6 +267,7 @@ func TestReportHandler_ProfitLoss(t *testing.T) {
 	})
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/profit-loss", h.ProfitLoss)
 
 	req := httptest.NewRequest(http.MethodGet, "/profit-loss", nil)

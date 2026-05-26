@@ -21,6 +21,7 @@ func TestDashboardHandler_GetDashboard_Empty(t *testing.T) {
 	h := NewDashboardHandler(dashSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/", h.GetDashboard)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -75,7 +76,7 @@ func TestDashboardHandler_GetDashboard_WithData(t *testing.T) {
 	h := NewDashboardHandler(dashSvc)
 
 	// Seed a contact.
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// Seed an invoice with delivery_date in current month so it shows up in revenue.
 	now := time.Now()
@@ -88,12 +89,12 @@ func TestDashboardHandler_GetDashboard_WithData(t *testing.T) {
 			VATRatePercent: 21,
 		},
 	}
-	inv := testutil.SeedInvoice(t, db, contact.ID, items)
+	inv := testutil.SeedInvoice(t, db, 1, contact.ID, items)
 	// The invoice is seeded with delivery_date = now, so it should appear in current month revenue.
 	_ = inv
 
 	// Seed an expense in the current month.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:  "Office rent",
 		Amount:       domain.NewAmount(500, 0),
 		IssueDate:    now,
@@ -102,6 +103,7 @@ func TestDashboardHandler_GetDashboard_WithData(t *testing.T) {
 	})
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Get("/", h.GetDashboard)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

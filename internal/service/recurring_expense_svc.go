@@ -29,8 +29,8 @@ var validFrequencies = map[string]bool{
 	"yearly":    true,
 }
 
-// Create validates and persists a new recurring expense.
-func (s *RecurringExpenseService) Create(ctx context.Context, re *domain.RecurringExpense) error {
+// Create validates and persists a new recurring expense under the given company.
+func (s *RecurringExpenseService) Create(ctx context.Context, companyID int64, re *domain.RecurringExpense) error {
 	if re.Name == "" {
 		return fmt.Errorf("recurring expense name is required: %w", domain.ErrInvalidInput)
 	}
@@ -64,7 +64,7 @@ func (s *RecurringExpenseService) Create(ctx context.Context, re *domain.Recurri
 		re.VATAmount = re.Amount.Multiply(float64(re.VATRatePercent) / (100.0 + float64(re.VATRatePercent)))
 	}
 
-	if err := s.repo.Create(ctx, re); err != nil {
+	if err := s.repo.Create(ctx, companyID, re); err != nil {
 		return fmt.Errorf("creating recurring expense: %w", err)
 	}
 	if s.audit != nil {
@@ -73,8 +73,8 @@ func (s *RecurringExpenseService) Create(ctx context.Context, re *domain.Recurri
 	return nil
 }
 
-// Update validates and updates an existing recurring expense.
-func (s *RecurringExpenseService) Update(ctx context.Context, re *domain.RecurringExpense) error {
+// Update validates and updates an existing recurring expense within the given company.
+func (s *RecurringExpenseService) Update(ctx context.Context, companyID int64, re *domain.RecurringExpense) error {
 	if re.ID == 0 {
 		return fmt.Errorf("recurring expense ID is required: %w", domain.ErrInvalidInput)
 	}
@@ -102,12 +102,12 @@ func (s *RecurringExpenseService) Update(ctx context.Context, re *domain.Recurri
 		re.VATAmount = re.Amount.Multiply(float64(re.VATRatePercent) / (100.0 + float64(re.VATRatePercent)))
 	}
 
-	existing, err := s.repo.GetByID(ctx, re.ID)
+	existing, err := s.repo.GetByID(ctx, companyID, re.ID)
 	if err != nil {
 		return fmt.Errorf("fetching recurring expense for audit: %w", err)
 	}
 
-	if err := s.repo.Update(ctx, re); err != nil {
+	if err := s.repo.Update(ctx, companyID, re); err != nil {
 		return fmt.Errorf("updating recurring expense: %w", err)
 	}
 	if s.audit != nil {
@@ -116,12 +116,12 @@ func (s *RecurringExpenseService) Update(ctx context.Context, re *domain.Recurri
 	return nil
 }
 
-// Delete removes a recurring expense by ID (soft delete).
-func (s *RecurringExpenseService) Delete(ctx context.Context, id int64) error {
+// Delete removes a recurring expense by ID (soft delete) within the given company.
+func (s *RecurringExpenseService) Delete(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("recurring expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, companyID, id); err != nil {
 		return fmt.Errorf("deleting recurring expense: %w", err)
 	}
 	if s.audit != nil {
@@ -130,20 +130,20 @@ func (s *RecurringExpenseService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetByID retrieves a recurring expense by its ID.
-func (s *RecurringExpenseService) GetByID(ctx context.Context, id int64) (*domain.RecurringExpense, error) {
+// GetByID retrieves a recurring expense by its ID within the given company.
+func (s *RecurringExpenseService) GetByID(ctx context.Context, companyID, id int64) (*domain.RecurringExpense, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("recurring expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	re, err := s.repo.GetByID(ctx, id)
+	re, err := s.repo.GetByID(ctx, companyID, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching recurring expense: %w", err)
 	}
 	return re, nil
 }
 
-// List retrieves recurring expenses with pagination.
-func (s *RecurringExpenseService) List(ctx context.Context, limit, offset int) ([]domain.RecurringExpense, int, error) {
+// List retrieves recurring expenses with pagination within the given company.
+func (s *RecurringExpenseService) List(ctx context.Context, companyID int64, limit, offset int) ([]domain.RecurringExpense, int, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -153,19 +153,19 @@ func (s *RecurringExpenseService) List(ctx context.Context, limit, offset int) (
 	if offset < 0 {
 		offset = 0
 	}
-	items, count, err := s.repo.List(ctx, limit, offset)
+	items, count, err := s.repo.List(ctx, companyID, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing recurring expenses: %w", err)
 	}
 	return items, count, nil
 }
 
-// Activate enables a recurring expense for generation.
-func (s *RecurringExpenseService) Activate(ctx context.Context, id int64) error {
+// Activate enables a recurring expense for generation within the given company.
+func (s *RecurringExpenseService) Activate(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("recurring expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.Activate(ctx, id); err != nil {
+	if err := s.repo.Activate(ctx, companyID, id); err != nil {
 		return fmt.Errorf("activating recurring expense: %w", err)
 	}
 	if s.audit != nil {
@@ -174,12 +174,12 @@ func (s *RecurringExpenseService) Activate(ctx context.Context, id int64) error 
 	return nil
 }
 
-// Deactivate disables a recurring expense from generation.
-func (s *RecurringExpenseService) Deactivate(ctx context.Context, id int64) error {
+// Deactivate disables a recurring expense from generation within the given company.
+func (s *RecurringExpenseService) Deactivate(ctx context.Context, companyID, id int64) error {
 	if id == 0 {
 		return fmt.Errorf("recurring expense ID is required: %w", domain.ErrInvalidInput)
 	}
-	if err := s.repo.Deactivate(ctx, id); err != nil {
+	if err := s.repo.Deactivate(ctx, companyID, id); err != nil {
 		return fmt.Errorf("deactivating recurring expense: %w", err)
 	}
 	if s.audit != nil {
@@ -188,11 +188,11 @@ func (s *RecurringExpenseService) Deactivate(ctx context.Context, id int64) erro
 	return nil
 }
 
-// GeneratePending finds all due recurring expenses and creates actual expenses for them.
-// It advances the next_issue_date and deactivates any that have passed their end_date.
-// Returns the number of expenses generated.
-func (s *RecurringExpenseService) GeneratePending(ctx context.Context, asOfDate time.Time) (int, error) {
-	due, err := s.repo.ListDue(ctx, asOfDate)
+// GeneratePending finds all due recurring expenses and creates actual expenses for them
+// within the given company. It advances the next_issue_date and deactivates any that
+// have passed their end_date. Returns the number of expenses generated.
+func (s *RecurringExpenseService) GeneratePending(ctx context.Context, companyID int64, asOfDate time.Time) (int, error) {
+	due, err := s.repo.ListDue(ctx, companyID, asOfDate)
 	if err != nil {
 		return 0, fmt.Errorf("listing due recurring expenses: %w", err)
 	}
@@ -218,7 +218,7 @@ func (s *RecurringExpenseService) GeneratePending(ctx context.Context, asOfDate 
 			Notes:           re.Notes,
 		}
 
-		if err := s.expenses.Create(ctx, expense); err != nil {
+		if err := s.expenses.Create(ctx, companyID, expense); err != nil {
 			return generated, fmt.Errorf("creating expense from recurring %d: %w", re.ID, err)
 		}
 		generated++
@@ -233,7 +233,7 @@ func (s *RecurringExpenseService) GeneratePending(ctx context.Context, asOfDate 
 		}
 
 		// Save updated next_issue_date (and is_active if deactivated).
-		if err := s.repo.Update(ctx, re); err != nil {
+		if err := s.repo.Update(ctx, companyID, re); err != nil {
 			return generated, fmt.Errorf("updating recurring expense %d next date: %w", re.ID, err)
 		}
 	}

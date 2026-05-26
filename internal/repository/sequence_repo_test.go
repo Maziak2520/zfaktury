@@ -2,8 +2,7 @@ package repository
 
 import (
 	"context"
-	"database/sql"
-	"strings"
+	"errors"
 	"testing"
 
 	"github.com/zajca/zfaktury/internal/domain"
@@ -22,7 +21,7 @@ func TestSequenceRepository_Create(t *testing.T) {
 		FormatPattern: "{prefix}{year}{number:04d}",
 	}
 
-	if err := repo.Create(ctx, seq); err != nil {
+	if err := repo.Create(ctx, 1, seq); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -40,7 +39,7 @@ func TestSequenceRepository_Create_DuplicatePrefixYear(t *testing.T) {
 		Prefix: "FV", NextNumber: 1, Year: 2026,
 		FormatPattern: "{prefix}{year}{number:04d}",
 	}
-	if err := repo.Create(ctx, seq1); err != nil {
+	if err := repo.Create(ctx, 1, seq1); err != nil {
 		t.Fatalf("Create() first error: %v", err)
 	}
 
@@ -48,7 +47,7 @@ func TestSequenceRepository_Create_DuplicatePrefixYear(t *testing.T) {
 		Prefix: "FV", NextNumber: 1, Year: 2026,
 		FormatPattern: "{prefix}{year}{number:04d}",
 	}
-	err := repo.Create(ctx, seq2)
+	err := repo.Create(ctx, 1, seq2)
 	if err == nil {
 		t.Error("expected error for duplicate prefix+year")
 	}
@@ -59,9 +58,9 @@ func TestSequenceRepository_GetByID(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
-	got, err := repo.GetByID(ctx, seqID)
+	got, err := repo.GetByID(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -82,12 +81,12 @@ func TestSequenceRepository_GetByID_NotFound(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByID(ctx, 99999)
+	_, err := repo.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent sequence")
 	}
-	if !strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
-		t.Errorf("expected sql.ErrNoRows in error, got: %v", err)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got: %v", err)
 	}
 }
 
@@ -96,19 +95,19 @@ func TestSequenceRepository_Update(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
-	seq, err := repo.GetByID(ctx, seqID)
+	seq, err := repo.GetByID(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
 
 	seq.NextNumber = 10
-	if err := repo.Update(ctx, seq); err != nil {
+	if err := repo.Update(ctx, 1, seq); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, seqID)
+	got, err := repo.GetByID(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("GetByID() after update error: %v", err)
 	}
@@ -122,14 +121,14 @@ func TestSequenceRepository_Delete_SoftDelete(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
-	if err := repo.Delete(ctx, seqID); err != nil {
+	if err := repo.Delete(ctx, 1, seqID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
 	// Should not be found via GetByID (filters deleted_at IS NULL).
-	_, err := repo.GetByID(ctx, seqID)
+	_, err := repo.GetByID(ctx, 1, seqID)
 	if err == nil {
 		t.Error("expected error when getting soft-deleted sequence")
 	}
@@ -149,7 +148,7 @@ func TestSequenceRepository_Delete_NotFound(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	err := repo.Delete(ctx, 99999)
+	err := repo.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent sequence")
 	}
@@ -160,11 +159,11 @@ func TestSequenceRepository_List(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	testutil.SeedInvoiceSequence(t, db, "FV", 2026)
-	testutil.SeedInvoiceSequence(t, db, "ZF", 2026)
-	testutil.SeedInvoiceSequence(t, db, "FV", 2025)
+	testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
+	testutil.SeedInvoiceSequence(t, db, 1, "ZF", 2026)
+	testutil.SeedInvoiceSequence(t, db, 1, "FV", 2025)
 
-	sequences, err := repo.List(ctx)
+	sequences, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -178,14 +177,14 @@ func TestSequenceRepository_List_ExcludesSoftDeleted(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	id1 := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
-	testutil.SeedInvoiceSequence(t, db, "ZF", 2026)
+	id1 := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
+	testutil.SeedInvoiceSequence(t, db, 1, "ZF", 2026)
 
-	if err := repo.Delete(ctx, id1); err != nil {
+	if err := repo.Delete(ctx, 1, id1); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
-	sequences, err := repo.List(ctx)
+	sequences, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -199,10 +198,10 @@ func TestSequenceRepository_GetByPrefixAndYear(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	testutil.SeedInvoiceSequence(t, db, "FV", 2026)
-	testutil.SeedInvoiceSequence(t, db, "ZF", 2026)
+	testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
+	testutil.SeedInvoiceSequence(t, db, 1, "ZF", 2026)
 
-	got, err := repo.GetByPrefixAndYear(ctx, "ZF", 2026)
+	got, err := repo.GetByPrefixAndYear(ctx, 1, "ZF", 2026)
 	if err != nil {
 		t.Fatalf("GetByPrefixAndYear() error: %v", err)
 	}
@@ -219,12 +218,12 @@ func TestSequenceRepository_GetByPrefixAndYear_NotFound(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	_, err := repo.GetByPrefixAndYear(ctx, "XX", 2099)
+	_, err := repo.GetByPrefixAndYear(ctx, 1, "XX", 2099)
 	if err == nil {
 		t.Error("expected error for non-existent prefix+year")
 	}
-	if !strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
-		t.Errorf("expected sql.ErrNoRows in error, got: %v", err)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got: %v", err)
 	}
 }
 
@@ -233,10 +232,10 @@ func TestSequenceRepository_CountInvoicesBySequenceID(t *testing.T) {
 	repo := NewSequenceRepository(db)
 	ctx := context.Background()
 
-	seqID := testutil.SeedInvoiceSequence(t, db, "FV", 2026)
+	seqID := testutil.SeedInvoiceSequence(t, db, 1, "FV", 2026)
 
 	// No invoices yet.
-	count, err := repo.CountInvoicesBySequenceID(ctx, seqID)
+	count, err := repo.CountInvoicesBySequenceID(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("CountInvoicesBySequenceID() error: %v", err)
 	}
@@ -245,14 +244,14 @@ func TestSequenceRepository_CountInvoicesBySequenceID(t *testing.T) {
 	}
 
 	// Seed an invoice referencing this sequence.
-	customer := testutil.SeedContact(t, db, nil)
-	testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	customer := testutil.SeedContact(t, db, 1, nil)
+	testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Test", Quantity: 100, Unit: "ks", UnitPrice: 10000, VATRatePercent: 21},
 	})
 	// Link it to the sequence.
 	db.ExecContext(ctx, "UPDATE invoices SET sequence_id = ? WHERE id = 1", seqID)
 
-	count, err = repo.CountInvoicesBySequenceID(ctx, seqID)
+	count, err = repo.CountInvoicesBySequenceID(ctx, 1, seqID)
 	if err != nil {
 		t.Fatalf("CountInvoicesBySequenceID() after seeding error: %v", err)
 	}

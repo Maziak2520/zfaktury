@@ -14,20 +14,20 @@ func TestOverdueService_CheckOverdue(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	ctx := context.Background()
 
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "Overdue Svc Customer"})
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "Overdue Svc Customer"})
 	items := []domain.InvoiceItem{
 		{Description: "Work", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	}
 
 	// Create a 'sent' invoice with past due date.
-	inv1 := testutil.SeedInvoice(t, db, customer.ID, items)
+	inv1 := testutil.SeedInvoice(t, db, 1, customer.ID, items)
 	_, err := db.ExecContext(ctx, `UPDATE invoices SET status = 'sent', due_date = '2026-01-01' WHERE id = ?`, inv1.ID)
 	if err != nil {
 		t.Fatalf("updating invoice: %v", err)
 	}
 
 	// Create a 'sent' invoice with future due date (should NOT be marked).
-	inv2 := testutil.SeedInvoice(t, db, customer.ID, items)
+	inv2 := testutil.SeedInvoice(t, db, 1, customer.ID, items)
 	_, err = db.ExecContext(ctx, `UPDATE invoices SET status = 'sent', due_date = '2099-12-31' WHERE id = ?`, inv2.ID)
 	if err != nil {
 		t.Fatalf("updating invoice: %v", err)
@@ -37,7 +37,7 @@ func TestOverdueService_CheckOverdue(t *testing.T) {
 	historyRepo := repository.NewStatusHistoryRepository(db)
 	svc := NewOverdueService(invoiceRepo, historyRepo)
 
-	count, err := svc.CheckOverdue(ctx)
+	count, err := svc.CheckOverdue(ctx, 1)
 	if err != nil {
 		t.Fatalf("CheckOverdue: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestOverdueService_CheckOverdue(t *testing.T) {
 	}
 
 	// Verify history was recorded.
-	history, err := svc.GetHistory(ctx, inv1.ID)
+	history, err := svc.GetHistory(ctx, 1, inv1.ID)
 	if err != nil {
 		t.Fatalf("GetHistory: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestOverdueService_CheckOverdue_NoCandidates(t *testing.T) {
 	historyRepo := repository.NewStatusHistoryRepository(db)
 	svc := NewOverdueService(invoiceRepo, historyRepo)
 
-	count, err := svc.CheckOverdue(ctx)
+	count, err := svc.CheckOverdue(ctx, 1)
 	if err != nil {
 		t.Fatalf("CheckOverdue: %v", err)
 	}
@@ -92,11 +92,11 @@ func TestOverdueService_GetHistory(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	ctx := context.Background()
 
-	customer := testutil.SeedContact(t, db, &domain.Contact{Name: "History Svc Customer"})
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{Name: "History Svc Customer"})
 	items := []domain.InvoiceItem{
 		{Description: "Work", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	}
-	inv := testutil.SeedInvoice(t, db, customer.ID, items)
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, items)
 
 	historyRepo := repository.NewStatusHistoryRepository(db)
 	invoiceRepo := repository.NewInvoiceRepository(db)
@@ -110,11 +110,11 @@ func TestOverdueService_GetHistory(t *testing.T) {
 		ChangedAt: time.Now(),
 		Note:      "test",
 	}
-	if err := historyRepo.Create(ctx, change); err != nil {
+	if err := historyRepo.Create(ctx, 1, change); err != nil {
 		t.Fatalf("creating history: %v", err)
 	}
 
-	history, err := svc.GetHistory(ctx, inv.ID)
+	history, err := svc.GetHistory(ctx, 1, inv.ID)
 	if err != nil {
 		t.Fatalf("GetHistory: %v", err)
 	}

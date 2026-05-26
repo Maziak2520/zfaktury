@@ -35,8 +35,14 @@ type checkOverdueResponse struct {
 }
 
 // GetHistory returns the status change history for an invoice.
-// GET /invoices/{id}/history
+// GET /api/v1/companies/{companyID}/invoices/{id}/history
 func (h *StatusHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	idStr := chi.URLParam(r, "id")
 	invoiceID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -44,7 +50,7 @@ func (h *StatusHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	changes, err := h.overdueSvc.GetHistory(r.Context(), invoiceID)
+	changes, err := h.overdueSvc.GetHistory(r.Context(), company.ID, invoiceID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to get status history")
 		return
@@ -66,9 +72,15 @@ func (h *StatusHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request
 }
 
 // CheckOverdue triggers overdue detection for all sent invoices past their due date.
-// POST /invoices/check-overdue
+// POST /api/v1/companies/{companyID}/invoices/check-overdue
 func (h *StatusHistoryHandler) CheckOverdue(w http.ResponseWriter, r *http.Request) {
-	count, err := h.overdueSvc.CheckOverdue(r.Context())
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
+	count, err := h.overdueSvc.CheckOverdue(r.Context(), company.ID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to check overdue invoices")
 		return

@@ -39,7 +39,7 @@ func TestRecurringExpenseService_Create_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if re.ID == 0 {
@@ -53,7 +53,7 @@ func TestRecurringExpenseService_Create_EmptyName(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.Name = ""
-	if err := svc.Create(ctx, re); err == nil {
+	if err := svc.Create(ctx, 1, re); err == nil {
 		t.Error("expected error for empty name")
 	}
 }
@@ -64,7 +64,7 @@ func TestRecurringExpenseService_Create_EmptyDescription(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.Description = ""
-	if err := svc.Create(ctx, re); err == nil {
+	if err := svc.Create(ctx, 1, re); err == nil {
 		t.Error("expected error for empty description")
 	}
 }
@@ -75,7 +75,7 @@ func TestRecurringExpenseService_Create_ZeroAmount(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.Amount = 0
-	if err := svc.Create(ctx, re); err == nil {
+	if err := svc.Create(ctx, 1, re); err == nil {
 		t.Error("expected error for zero amount")
 	}
 }
@@ -86,7 +86,7 @@ func TestRecurringExpenseService_Create_MissingNextIssueDate(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.NextIssueDate = time.Time{}
-	if err := svc.Create(ctx, re); err == nil {
+	if err := svc.Create(ctx, 1, re); err == nil {
 		t.Error("expected error for missing next issue date")
 	}
 }
@@ -97,7 +97,7 @@ func TestRecurringExpenseService_Create_InvalidFrequency(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.Frequency = "biweekly"
-	if err := svc.Create(ctx, re); err == nil {
+	if err := svc.Create(ctx, 1, re); err == nil {
 		t.Error("expected error for invalid frequency")
 	}
 }
@@ -117,7 +117,7 @@ func TestRecurringExpenseService_Create_InvalidBusinessPercent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			re := makeRecurringExpense()
 			re.BusinessPercent = tt.percent
-			if err := svc.Create(ctx, re); err == nil {
+			if err := svc.Create(ctx, 1, re); err == nil {
 				t.Error("expected error for invalid business percent")
 			}
 		})
@@ -130,7 +130,7 @@ func TestRecurringExpenseService_Create_DefaultCurrency(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.CurrencyCode = ""
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if re.CurrencyCode != domain.CurrencyCZK {
@@ -147,7 +147,7 @@ func TestRecurringExpenseService_Create_VATCalculation(t *testing.T) {
 	re.VATRatePercent = 21
 	re.VATAmount = 0
 
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -162,12 +162,12 @@ func TestRecurringExpenseService_Update_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	re.Name = "Updated name"
-	if err := svc.Update(ctx, re); err != nil {
+	if err := svc.Update(ctx, 1, re); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 }
@@ -177,7 +177,7 @@ func TestRecurringExpenseService_Update_ZeroID(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Update(ctx, re); err == nil {
+	if err := svc.Update(ctx, 1, re); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -186,7 +186,7 @@ func TestRecurringExpenseService_Delete_ZeroID(t *testing.T) {
 	svc, _ := newRecurringExpenseTestStack(t)
 	ctx := context.Background()
 
-	if err := svc.Delete(ctx, 0); err == nil {
+	if err := svc.Delete(ctx, 1, 0); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -196,16 +196,16 @@ func TestRecurringExpenseService_Delete_Success(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if err := svc.Delete(ctx, re.ID); err != nil {
+	if err := svc.Delete(ctx, 1, re.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
 	// Should not be found after delete.
-	if _, err := svc.GetByID(ctx, re.ID); err == nil {
+	if _, err := svc.GetByID(ctx, 1, re.ID); err == nil {
 		t.Error("expected error after delete")
 	}
 }
@@ -214,7 +214,7 @@ func TestRecurringExpenseService_GetByID_ZeroID(t *testing.T) {
 	svc, _ := newRecurringExpenseTestStack(t)
 	ctx := context.Background()
 
-	if _, err := svc.GetByID(ctx, 0); err == nil {
+	if _, err := svc.GetByID(ctx, 1, 0); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -224,11 +224,11 @@ func TestRecurringExpenseService_GetByID_Success(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, re.ID)
+	got, err := svc.GetByID(ctx, 1, re.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestRecurringExpenseService_Activate_ZeroID(t *testing.T) {
 	svc, _ := newRecurringExpenseTestStack(t)
 	ctx := context.Background()
 
-	if err := svc.Activate(ctx, 0); err == nil {
+	if err := svc.Activate(ctx, 1, 0); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -251,13 +251,13 @@ func TestRecurringExpenseService_Activate_Success(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := svc.Deactivate(ctx, re.ID); err != nil {
+	if err := svc.Deactivate(ctx, 1, re.ID); err != nil {
 		t.Fatalf("Deactivate: %v", err)
 	}
-	if err := svc.Activate(ctx, re.ID); err != nil {
+	if err := svc.Activate(ctx, 1, re.ID); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
 }
@@ -266,7 +266,7 @@ func TestRecurringExpenseService_Deactivate_ZeroID(t *testing.T) {
 	svc, _ := newRecurringExpenseTestStack(t)
 	ctx := context.Background()
 
-	if err := svc.Deactivate(ctx, 0); err == nil {
+	if err := svc.Deactivate(ctx, 1, 0); err == nil {
 		t.Error("expected error for zero ID")
 	}
 }
@@ -276,10 +276,10 @@ func TestRecurringExpenseService_Deactivate_Success(t *testing.T) {
 	ctx := context.Background()
 
 	re := makeRecurringExpense()
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := svc.Deactivate(ctx, re.ID); err != nil {
+	if err := svc.Deactivate(ctx, 1, re.ID); err != nil {
 		t.Fatalf("Deactivate: %v", err)
 	}
 }
@@ -289,7 +289,7 @@ func TestRecurringExpenseService_List_HighLimit(t *testing.T) {
 	ctx := context.Background()
 
 	// Limit > 100 should be capped.
-	items, count, err := svc.List(ctx, 200, 0)
+	items, count, err := svc.List(ctx, 1, 200, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestRecurringExpenseService_List_HighLimit(t *testing.T) {
 	}
 
 	// Negative offset should be treated as 0.
-	items2, _, err := svc.List(ctx, 10, -5)
+	items2, _, err := svc.List(ctx, 1, 10, -5)
 	if err != nil {
 		t.Fatalf("List with negative offset: %v", err)
 	}
@@ -314,12 +314,12 @@ func TestRecurringExpenseService_List_DefaultLimit(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		re := makeRecurringExpense()
-		if err := svc.Create(ctx, re); err != nil {
+		if err := svc.Create(ctx, 1, re); err != nil {
 			t.Fatalf("Create() error: %v", err)
 		}
 	}
 
-	items, total, err := svc.List(ctx, 0, 0)
+	items, total, err := svc.List(ctx, 1, 0, 0)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -337,12 +337,12 @@ func TestRecurringExpenseService_GeneratePending(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.NextIssueDate = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	count, err := svc.GeneratePending(ctx, asOf)
+	count, err := svc.GeneratePending(ctx, 1, asOf)
 	if err != nil {
 		t.Fatalf("GeneratePending() error: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestRecurringExpenseService_GeneratePending(t *testing.T) {
 	}
 
 	// Check that expense was created.
-	expenses, total, err := expSvc.List(ctx, domain.ExpenseFilter{})
+	expenses, total, err := expSvc.List(ctx, 1, domain.ExpenseFilter{})
 	if err != nil {
 		t.Fatalf("List expenses error: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestRecurringExpenseService_GeneratePending(t *testing.T) {
 	}
 
 	// Check that next_issue_date was advanced.
-	updated, err := svc.GetByID(ctx, re.ID)
+	updated, err := svc.GetByID(ctx, 1, re.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -379,14 +379,14 @@ func TestRecurringExpenseService_GeneratePending_Idempotent(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.NextIssueDate = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
 
 	// First run generates.
-	count1, err := svc.GeneratePending(ctx, asOf)
+	count1, err := svc.GeneratePending(ctx, 1, asOf)
 	if err != nil {
 		t.Fatalf("GeneratePending() 1st error: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestRecurringExpenseService_GeneratePending_Idempotent(t *testing.T) {
 	}
 
 	// Second run should generate nothing (next_issue_date advanced past asOf).
-	count2, err := svc.GeneratePending(ctx, asOf)
+	count2, err := svc.GeneratePending(ctx, 1, asOf)
 	if err != nil {
 		t.Fatalf("GeneratePending() 2nd error: %v", err)
 	}
@@ -412,12 +412,12 @@ func TestRecurringExpenseService_GeneratePending_DeactivatesAtEndDate(t *testing
 	re := makeRecurringExpense()
 	re.NextIssueDate = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	re.EndDate = &endDate
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	count, err := svc.GeneratePending(ctx, asOf)
+	count, err := svc.GeneratePending(ctx, 1, asOf)
 	if err != nil {
 		t.Fatalf("GeneratePending() error: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestRecurringExpenseService_GeneratePending_DeactivatesAtEndDate(t *testing
 	}
 
 	// Check that recurring expense was deactivated (next would be April 1, past end March 15).
-	updated, err := svc.GetByID(ctx, re.ID)
+	updated, err := svc.GetByID(ctx, 1, re.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -441,16 +441,16 @@ func TestRecurringExpenseService_GeneratePending_SkipsInactive(t *testing.T) {
 
 	re := makeRecurringExpense()
 	re.NextIssueDate = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-	if err := svc.Create(ctx, re); err != nil {
+	if err := svc.Create(ctx, 1, re); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.Deactivate(ctx, re.ID); err != nil {
+	if err := svc.Deactivate(ctx, 1, re.ID); err != nil {
 		t.Fatalf("Deactivate() error: %v", err)
 	}
 
 	asOf := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	count, err := svc.GeneratePending(ctx, asOf)
+	count, err := svc.GeneratePending(ctx, 1, asOf)
 	if err != nil {
 		t.Fatalf("GeneratePending() error: %v", err)
 	}

@@ -68,13 +68,31 @@ func NewTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("enabling foreign_keys pragma: %v", err)
 	}
 
+	// Seed a default company (id=1) so per-table company_id FKs (added in
+	// migration 025 onwards) resolve for fixtures that don't explicitly
+	// create a company. Fresh-install code paths skip the seed in migration
+	// 025 because settings have no ICO; tests do the same here.
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := db.Exec(`
+		INSERT INTO companies (
+			id, name, legal_name, ico, dic, vat_registered,
+			created_at, updated_at
+		) VALUES (1, 'Test Company', 'Test Company', '00000000', NULL, 0, ?, ?)`,
+		now, now,
+	); err != nil {
+		_ = db.Close()
+		t.Fatalf("seeding default company: %v", err)
+	}
+
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
 // SeedContact inserts a contact into the database with sensible defaults.
-// Fields from the provided contact override defaults. Returns the contact with its assigned ID.
-func SeedContact(t *testing.T, db *sql.DB, c *domain.Contact) *domain.Contact {
+// Fields from the provided contact override defaults. The companyID argument
+// scopes the contact to a specific company (pass 1 for the default company
+// seeded by NewTestDB). Returns the contact with its assigned ID.
+func SeedContact(t *testing.T, db *sql.DB, companyID int64, c *domain.Contact) *domain.Contact {
 	t.Helper()
 
 	if c == nil {
@@ -96,11 +114,13 @@ func SeedContact(t *testing.T, db *sql.DB, c *domain.Contact) *domain.Contact {
 
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO contacts (
+			company_id,
 			type, name, ico, dic, street, city, zip, country,
 			email, phone, web, bank_account, bank_code, iban, swift,
 			payment_terms_days, tags, notes, is_favorite, vat_unreliable_at,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		c.Type, c.Name, c.ICO, c.DIC, c.Street, c.City, c.ZIP, c.Country,
 		c.Email, c.Phone, c.Web, c.BankAccount, c.BankCode, c.IBAN, c.SWIFT,
 		c.PaymentTermsDays, c.Tags, c.Notes, c.IsFavorite, c.VATUnreliableAt,
@@ -118,9 +138,10 @@ func SeedContact(t *testing.T, db *sql.DB, c *domain.Contact) *domain.Contact {
 	return c
 }
 
-// SeedInvoice inserts an invoice with items into the database.
+// SeedInvoice inserts an invoice with items into the database under the given company.
 // A customer contact must already exist. Returns the invoice with assigned IDs.
-func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.InvoiceItem) *domain.Invoice {
+// Pass companyID=1 for the default company seeded by NewTestDB.
+func SeedInvoice(t *testing.T, db *sql.DB, companyID int64, customerID int64, items []domain.InvoiceItem) *domain.Invoice {
 	t.Helper()
 
 	now := time.Now()
@@ -151,6 +172,7 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO invoices (
+			company_id,
 			sequence_id, invoice_number, type, status,
 			issue_date, due_date, delivery_date, variable_symbol, constant_symbol,
 			customer_id, currency_code, exchange_rate,
@@ -158,7 +180,8 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 			subtotal_amount, vat_amount, total_amount, paid_amount,
 			notes, internal_notes, sent_at, paid_at,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		seqID, inv.InvoiceNumber, inv.Type, inv.Status,
 		inv.IssueDate.Format("2006-01-02"), inv.DueDate.Format("2006-01-02"), inv.DeliveryDate.Format("2006-01-02"), inv.VariableSymbol, inv.ConstantSymbol,
 		inv.CustomerID, inv.CurrencyCode, inv.ExchangeRate,
@@ -181,11 +204,16 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 		item := &inv.Items[i]
 		item.InvoiceID = invoiceID
 
+		// company_id matches the parent invoice so the composite FK
+		// (company_id, invoice_id) -> invoices(company_id, id) resolves;
+		// mismatched values are rejected by migration 025's FK.
 		itemResult, err := db.ExecContext(context.Background(), `
 			INSERT INTO invoice_items (
+				company_id,
 				invoice_id, description, quantity, unit, unit_price,
 				vat_rate_percent, vat_amount, total_amount, sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			companyID,
 			item.InvoiceID, item.Description, item.Quantity, item.Unit, item.UnitPrice,
 			item.VATRatePercent, item.VATAmount, item.TotalAmount, item.SortOrder,
 		)
@@ -202,9 +230,10 @@ func SeedInvoice(t *testing.T, db *sql.DB, customerID int64, items []domain.Invo
 	return inv
 }
 
-// SeedExpense inserts an expense into the database with sensible defaults.
+// SeedExpense inserts an expense into the database under the given company with sensible defaults.
 // Fields from the provided expense override defaults.
-func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
+// Pass companyID=1 for the default company seeded by NewTestDB.
+func SeedExpense(t *testing.T, db *sql.DB, companyID int64, e *domain.Expense) *domain.Expense {
 	t.Helper()
 
 	if e == nil {
@@ -235,13 +264,15 @@ func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
 
 	result, err := db.ExecContext(context.Background(), `
 		INSERT INTO expenses (
+			company_id,
 			vendor_id, expense_number, category, description,
 			issue_date, amount, currency_code, exchange_rate,
 			vat_rate_percent, vat_amount,
 			is_tax_deductible, business_percent, payment_method,
 			document_path, notes,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		e.VendorID, e.ExpenseNumber, e.Category, e.Description,
 		e.IssueDate.Format("2006-01-02"), e.Amount, e.CurrencyCode, e.ExchangeRate,
 		e.VATRatePercent, e.VATAmount,
@@ -261,13 +292,14 @@ func SeedExpense(t *testing.T, db *sql.DB, e *domain.Expense) *domain.Expense {
 	return e
 }
 
-// SeedInvoiceSequence inserts an invoice sequence into the database.
-func SeedInvoiceSequence(t *testing.T, db *sql.DB, prefix string, year int) int64 {
+// SeedInvoiceSequence inserts an invoice sequence into the database for the
+// given company. Pass companyID=1 for the default company seeded by NewTestDB.
+func SeedInvoiceSequence(t *testing.T, db *sql.DB, companyID int64, prefix string, year int) int64 {
 	t.Helper()
 
 	result, err := db.ExecContext(context.Background(), `
-		INSERT INTO invoice_sequences (prefix, next_number, year, format_pattern)
-		VALUES (?, 1, ?, '{prefix}{year}{number:04d}')`, prefix, year)
+		INSERT INTO invoice_sequences (company_id, prefix, next_number, year, format_pattern)
+		VALUES (?, ?, 1, ?, '{prefix}{year}{number:04d}')`, companyID, prefix, year)
 	if err != nil {
 		t.Fatalf("seeding invoice sequence: %v", err)
 	}
@@ -275,6 +307,28 @@ func SeedInvoiceSequence(t *testing.T, db *sql.DB, prefix string, year int) int6
 	id, err := result.LastInsertId()
 	if err != nil {
 		t.Fatalf("getting sequence id: %v", err)
+	}
+	return id
+}
+
+// SeedCategory inserts an expense category into the database for the given
+// company. Pass companyID=1 for the default company seeded by NewTestDB.
+// Returns the assigned ID.
+func SeedCategory(t *testing.T, db *sql.DB, companyID int64, key, labelCS, labelEN string) int64 {
+	t.Helper()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	result, err := db.ExecContext(context.Background(), `
+		INSERT INTO expense_categories (company_id, key, label_cs, label_en, color, sort_order, is_default, created_at)
+		VALUES (?, ?, ?, ?, '#6B7280', 0, 0, ?)`,
+		companyID, key, labelCS, labelEN, now)
+	if err != nil {
+		t.Fatalf("seeding expense category: %v", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("getting category id: %v", err)
 	}
 	return id
 }

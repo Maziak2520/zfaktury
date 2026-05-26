@@ -7,6 +7,7 @@
 		type Contact,
 		type RecurringExpense
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK, toHalere } from '$lib/utils/money';
 	import { toISODate } from '$lib/utils/date';
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -43,6 +44,8 @@
 	onMount(() => {
 		loadContacts();
 	});
+
+	onCompanyChange(() => loadContacts());
 
 	async function loadContacts() {
 		try {

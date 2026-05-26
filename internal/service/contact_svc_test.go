@@ -36,7 +36,7 @@ func TestContactService_Create_Valid(t *testing.T) {
 		Type: domain.ContactTypeCompany,
 		Name: "Valid Company",
 	}
-	if err := svc.Create(ctx, c); err != nil {
+	if err := svc.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if c.ID == 0 {
@@ -49,7 +49,7 @@ func TestContactService_Create_EmptyName(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Type: domain.ContactTypeCompany, Name: ""}
-	err := svc.Create(ctx, c)
+	err := svc.Create(ctx, 1, c)
 	if err == nil {
 		t.Error("expected error for empty name")
 	}
@@ -60,7 +60,7 @@ func TestContactService_Create_InvalidType(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Name: "Test", Type: "invalid"}
-	err := svc.Create(ctx, c)
+	err := svc.Create(ctx, 1, c)
 	if err == nil {
 		t.Error("expected error for invalid type")
 	}
@@ -71,7 +71,7 @@ func TestContactService_Create_DefaultType(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Name: "No Type Set"}
-	if err := svc.Create(ctx, c); err != nil {
+	if err := svc.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if c.Type != domain.ContactTypeCompany {
@@ -84,12 +84,12 @@ func TestContactService_Update_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Name: "Original", Type: domain.ContactTypeCompany}
-	if err := svc.Create(ctx, c); err != nil {
+	if err := svc.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	c.Name = "Updated"
-	if err := svc.Update(ctx, c); err != nil {
+	if err := svc.Update(ctx, 1, c); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 }
@@ -98,7 +98,7 @@ func TestContactService_Update_ZeroID(t *testing.T) {
 	svc, _ := newContactService(t, nil)
 	ctx := context.Background()
 
-	err := svc.Update(ctx, &domain.Contact{Name: "Test", Type: domain.ContactTypeCompany})
+	err := svc.Update(ctx, 1, &domain.Contact{Name: "Test", Type: domain.ContactTypeCompany})
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -109,12 +109,12 @@ func TestContactService_Update_EmptyName(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Name: "Original", Type: domain.ContactTypeCompany}
-	if err := svc.Create(ctx, c); err != nil {
+	if err := svc.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	c.Name = ""
-	err := svc.Update(ctx, c)
+	err := svc.Update(ctx, 1, c)
 	if err == nil {
 		t.Error("expected error for empty name")
 	}
@@ -124,7 +124,7 @@ func TestContactService_Delete_ZeroID(t *testing.T) {
 	svc, _ := newContactService(t, nil)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 0)
+	err := svc.Delete(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -135,13 +135,13 @@ func TestContactService_Delete_Success(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Name: "To Delete", Type: domain.ContactTypeCompany}
-	if err := svc.Create(ctx, c); err != nil {
+	if err := svc.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := svc.Delete(ctx, c.ID); err != nil {
+	if err := svc.Delete(ctx, 1, c.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if _, err := svc.GetByID(ctx, c.ID); err == nil {
+	if _, err := svc.GetByID(ctx, 1, c.ID); err == nil {
 		t.Error("expected error after delete")
 	}
 }
@@ -150,7 +150,7 @@ func TestContactService_GetByID_ZeroID(t *testing.T) {
 	svc, _ := newContactService(t, nil)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 0)
+	_, err := svc.GetByID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -161,10 +161,10 @@ func TestContactService_GetByID_Success(t *testing.T) {
 	ctx := context.Background()
 
 	c := &domain.Contact{Name: "Test Contact", Type: domain.ContactTypeCompany}
-	if err := svc.Create(ctx, c); err != nil {
+	if err := svc.Create(ctx, 1, c); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	got, err := svc.GetByID(ctx, c.ID)
+	got, err := svc.GetByID(ctx, 1, c.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -179,10 +179,10 @@ func TestContactService_List_DefaultLimit(t *testing.T) {
 
 	// Create some contacts.
 	for i := 0; i < 3; i++ {
-		svc.Create(ctx, &domain.Contact{Name: "Contact", Type: domain.ContactTypeCompany})
+		svc.Create(ctx, 1, &domain.Contact{Name: "Contact", Type: domain.ContactTypeCompany})
 	}
 
-	contacts, total, err := svc.List(ctx, domain.ContactFilter{})
+	contacts, total, err := svc.List(ctx, 1, domain.ContactFilter{})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestContactService_List_LimitCapped(t *testing.T) {
 	ctx := context.Background()
 
 	// List with excessive limit - should be capped to 100.
-	_, _, err := svc.List(ctx, domain.ContactFilter{Limit: 500})
+	_, _, err := svc.List(ctx, 1, domain.ContactFilter{Limit: 500})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}

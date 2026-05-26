@@ -2,6 +2,8 @@
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import CompanyHeader from '$lib/components/CompanyHeader.svelte';
+	import { currentCompany } from '$lib/stores/currentCompany.svelte';
 
 	interface Props {
 		children: import('svelte').Snippet;
@@ -117,9 +119,15 @@
 			section: 'Nastavení',
 			items: [
 				{
+					href: '/companies',
+					label: 'Firmy',
+					icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+					actions: [{ href: '/companies/new', label: 'Nová firma' }]
+				},
+				{
 					href: '/settings/firma',
-					label: 'Firma',
-					icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4'
+					label: 'Údaje firmy',
+					icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
 				},
 				{
 					href: '/settings/email',
@@ -599,7 +607,21 @@
 				</svg>
 			</button>
 			<h1 class="ml-3 text-sm font-semibold text-primary">ZFaktury</h1>
+			{#if currentCompany.companies.length > 0}
+				<div class="ml-auto">
+					<CompanyHeader />
+				</div>
+			{/if}
 		</header>
+
+		<!-- Top bar (desktop) — only shown when at least one company is available -->
+		{#if currentCompany.companies.length > 0}
+			<header
+				class="hidden lg:flex h-12 items-center justify-end border-b border-border bg-surface px-4"
+			>
+				<CompanyHeader />
+			</header>
+		{/if}
 
 		<!-- Page content -->
 		<main class="flex-1 overflow-y-auto p-5">

@@ -20,21 +20,23 @@ func NewRecurringExpenseRepository(db *sql.DB) *RecurringExpenseRepository {
 	return &RecurringExpenseRepository{db: db}
 }
 
-// Create inserts a new recurring expense into the database.
-func (r *RecurringExpenseRepository) Create(ctx context.Context, re *domain.RecurringExpense) error {
+// Create inserts a new recurring expense into the database under the given company.
+func (r *RecurringExpenseRepository) Create(ctx context.Context, companyID int64, re *domain.RecurringExpense) error {
 	now := time.Now()
 	re.CreatedAt = now
 	re.UpdatedAt = now
 
 	result, err := r.db.ExecContext(ctx, `
 		INSERT INTO recurring_expenses (
+			company_id,
 			name, vendor_id, category, description,
 			amount, currency_code, exchange_rate,
 			vat_rate_percent, vat_amount,
 			is_tax_deductible, business_percent, payment_method,
 			notes, frequency, next_issue_date, end_date, is_active,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		companyID,
 		re.Name, re.VendorID, re.Category, re.Description,
 		re.Amount, re.CurrencyCode, re.ExchangeRate,
 		re.VATRatePercent, re.VATAmount,
@@ -55,8 +57,8 @@ func (r *RecurringExpenseRepository) Create(ctx context.Context, re *domain.Recu
 	return nil
 }
 
-// Update modifies an existing recurring expense.
-func (r *RecurringExpenseRepository) Update(ctx context.Context, re *domain.RecurringExpense) error {
+// Update modifies an existing recurring expense within the given company.
+func (r *RecurringExpenseRepository) Update(ctx context.Context, companyID int64, re *domain.RecurringExpense) error {
 	re.UpdatedAt = time.Now()
 
 	_, err := r.db.ExecContext(ctx, `
@@ -67,14 +69,14 @@ func (r *RecurringExpenseRepository) Update(ctx context.Context, re *domain.Recu
 			is_tax_deductible = ?, business_percent = ?, payment_method = ?,
 			notes = ?, frequency = ?, next_issue_date = ?, end_date = ?, is_active = ?,
 			updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL`,
+		WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
 		re.Name, re.VendorID, re.Category, re.Description,
 		re.Amount, re.CurrencyCode, re.ExchangeRate,
 		re.VATRatePercent, re.VATAmount,
 		re.IsTaxDeductible, re.BusinessPercent, re.PaymentMethod,
 		re.Notes, re.Frequency, re.NextIssueDate.Format("2006-01-02"),
 		formatNullableDate(re.EndDate), re.IsActive,
-		re.UpdatedAt.Format(time.RFC3339), re.ID,
+		re.UpdatedAt.Format(time.RFC3339), re.ID, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating recurring expense %d: %w", re.ID, err)
@@ -82,13 +84,13 @@ func (r *RecurringExpenseRepository) Update(ctx context.Context, re *domain.Recu
 	return nil
 }
 
-// Delete performs a soft delete on a recurring expense.
-func (r *RecurringExpenseRepository) Delete(ctx context.Context, id int64) error {
+// Delete performs a soft delete on a recurring expense within the given company.
+func (r *RecurringExpenseRepository) Delete(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	nowStr := now.Format(time.RFC3339)
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE recurring_expenses SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		nowStr, nowStr, id,
+		UPDATE recurring_expenses SET deleted_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		nowStr, nowStr, id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("soft-deleting recurring expense %d: %w", id, err)
@@ -99,13 +101,14 @@ func (r *RecurringExpenseRepository) Delete(ctx context.Context, id int64) error
 		return fmt.Errorf("checking rows affected for recurring expense %d: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("recurring expense %d not found or already deleted", id)
+		return fmt.Errorf("recurring expense %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// GetByID retrieves a single recurring expense by ID, including vendor data if available.
-func (r *RecurringExpenseRepository) GetByID(ctx context.Context, id int64) (*domain.RecurringExpense, error) {
+// GetByID retrieves a single recurring expense by ID, including vendor data if available,
+// scoped to the given company.
+func (r *RecurringExpenseRepository) GetByID(ctx context.Context, companyID, id int64) (*domain.RecurringExpense, error) {
 	re := &domain.RecurringExpense{}
 	var nextIssueDateStr string
 	var endDateStr sql.NullString
@@ -128,7 +131,7 @@ func (r *RecurringExpenseRepository) GetByID(ctx context.Context, id int64) (*do
 			c.name, c.type, c.ico
 		FROM recurring_expenses re
 		LEFT JOIN contacts c ON c.id = re.vendor_id
-		WHERE re.id = ? AND re.deleted_at IS NULL`, id,
+		WHERE re.id = ? AND re.company_id = ? AND re.deleted_at IS NULL`, id, companyID,
 	).Scan(
 		&re.ID, &re.Name, &vendorID, &re.Category, &re.Description,
 		&re.Amount, &re.CurrencyCode, &re.ExchangeRate,
@@ -140,7 +143,7 @@ func (r *RecurringExpenseRepository) GetByID(ctx context.Context, id int64) (*do
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("recurring expense %d not found: %w", id, err)
+			return nil, fmt.Errorf("recurring expense %d not found: %w", id, domain.ErrNotFound)
 		}
 		return nil, fmt.Errorf("querying recurring expense %d: %w", id, err)
 	}
@@ -181,12 +184,13 @@ func (r *RecurringExpenseRepository) GetByID(ctx context.Context, id int64) (*do
 	return re, nil
 }
 
-// List retrieves all non-deleted recurring expenses with pagination.
-func (r *RecurringExpenseRepository) List(ctx context.Context, limit, offset int) ([]domain.RecurringExpense, int, error) {
+// List retrieves all non-deleted recurring expenses with pagination within the given company.
+func (r *RecurringExpenseRepository) List(ctx context.Context, companyID int64, limit, offset int) ([]domain.RecurringExpense, int, error) {
 	// Count.
 	var total int
 	if err := r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM recurring_expenses WHERE deleted_at IS NULL",
+		"SELECT COUNT(*) FROM recurring_expenses WHERE company_id = ? AND deleted_at IS NULL",
+		companyID,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("counting recurring expenses: %w", err)
 	}
@@ -201,19 +205,19 @@ func (r *RecurringExpenseRepository) List(ctx context.Context, limit, offset int
 			COALESCE(c.name, '') AS vendor_name
 		FROM recurring_expenses re
 		LEFT JOIN contacts c ON c.id = re.vendor_id
-		WHERE re.deleted_at IS NULL
+		WHERE re.company_id = ? AND re.deleted_at IS NULL
 		ORDER BY re.next_issue_date ASC`
 
 	if limit > 0 {
 		query += " LIMIT ? OFFSET ?"
-		return r.scanList(ctx, query, total, limit, offset)
+		return r.scanList(ctx, query, total, companyID, limit, offset)
 	}
 
-	return r.scanList(ctx, query, total)
+	return r.scanList(ctx, query, total, companyID)
 }
 
-// ListActive retrieves all active, non-deleted recurring expenses.
-func (r *RecurringExpenseRepository) ListActive(ctx context.Context) ([]domain.RecurringExpense, error) {
+// ListActive retrieves all active, non-deleted recurring expenses within the given company.
+func (r *RecurringExpenseRepository) ListActive(ctx context.Context, companyID int64) ([]domain.RecurringExpense, error) {
 	query := `SELECT
 			re.id, re.name, re.vendor_id, re.category, re.description,
 			re.amount, re.currency_code, re.exchange_rate,
@@ -224,15 +228,16 @@ func (r *RecurringExpenseRepository) ListActive(ctx context.Context) ([]domain.R
 			COALESCE(c.name, '') AS vendor_name
 		FROM recurring_expenses re
 		LEFT JOIN contacts c ON c.id = re.vendor_id
-		WHERE re.deleted_at IS NULL AND re.is_active = 1
+		WHERE re.company_id = ? AND re.deleted_at IS NULL AND re.is_active = 1
 		ORDER BY re.next_issue_date ASC`
 
-	items, _, err := r.scanList(ctx, query, 0)
+	items, _, err := r.scanList(ctx, query, 0, companyID)
 	return items, err
 }
 
-// ListDue retrieves all active, non-deleted recurring expenses where next_issue_date <= asOfDate.
-func (r *RecurringExpenseRepository) ListDue(ctx context.Context, asOfDate time.Time) ([]domain.RecurringExpense, error) {
+// ListDue retrieves all active, non-deleted recurring expenses where next_issue_date <= asOfDate,
+// scoped to the given company.
+func (r *RecurringExpenseRepository) ListDue(ctx context.Context, companyID int64, asOfDate time.Time) ([]domain.RecurringExpense, error) {
 	query := `SELECT
 			re.id, re.name, re.vendor_id, re.category, re.description,
 			re.amount, re.currency_code, re.exchange_rate,
@@ -243,10 +248,10 @@ func (r *RecurringExpenseRepository) ListDue(ctx context.Context, asOfDate time.
 			COALESCE(c.name, '') AS vendor_name
 		FROM recurring_expenses re
 		LEFT JOIN contacts c ON c.id = re.vendor_id
-		WHERE re.deleted_at IS NULL AND re.is_active = 1 AND re.next_issue_date <= ?
+		WHERE re.company_id = ? AND re.deleted_at IS NULL AND re.is_active = 1 AND re.next_issue_date <= ?
 		ORDER BY re.next_issue_date ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, asOfDate.Format("2006-01-02"))
+	rows, err := r.db.QueryContext(ctx, query, companyID, asOfDate.Format("2006-01-02"))
 	if err != nil {
 		return nil, fmt.Errorf("listing due recurring expenses: %w", err)
 	}
@@ -255,12 +260,12 @@ func (r *RecurringExpenseRepository) ListDue(ctx context.Context, asOfDate time.
 	return r.scanRows(rows)
 }
 
-// Deactivate sets is_active = 0 for the given recurring expense.
-func (r *RecurringExpenseRepository) Deactivate(ctx context.Context, id int64) error {
+// Deactivate sets is_active = 0 for the given recurring expense within the given company.
+func (r *RecurringExpenseRepository) Deactivate(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE recurring_expenses SET is_active = 0, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		now.Format(time.RFC3339), id,
+		UPDATE recurring_expenses SET is_active = 0, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		now.Format(time.RFC3339), id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("deactivating recurring expense %d: %w", id, err)
@@ -270,17 +275,17 @@ func (r *RecurringExpenseRepository) Deactivate(ctx context.Context, id int64) e
 		return fmt.Errorf("checking rows affected for recurring expense %d deactivation: %w", id, err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("recurring expense %d not found or already deleted", id)
+		return fmt.Errorf("recurring expense %d not found or already deleted: %w", id, domain.ErrNotFound)
 	}
 	return nil
 }
 
-// Activate sets is_active = 1 for the given recurring expense.
-func (r *RecurringExpenseRepository) Activate(ctx context.Context, id int64) error {
+// Activate sets is_active = 1 for the given recurring expense within the given company.
+func (r *RecurringExpenseRepository) Activate(ctx context.Context, companyID, id int64) error {
 	now := time.Now()
 	_, err := r.db.ExecContext(ctx, `
-		UPDATE recurring_expenses SET is_active = 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		now.Format(time.RFC3339), id,
+		UPDATE recurring_expenses SET is_active = 1, updated_at = ? WHERE id = ? AND company_id = ? AND deleted_at IS NULL`,
+		now.Format(time.RFC3339), id, companyID,
 	)
 	if err != nil {
 		return fmt.Errorf("activating recurring expense %d: %w", id, err)

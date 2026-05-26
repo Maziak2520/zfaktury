@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { vatReturnApi } from '$lib/api/client';
+	import { notifyIfSwitchedCompany } from '$lib/stores/currentCompany.svelte';
 	import { filingTypeLabels, monthLabels, quarterLabels } from '$lib/utils/vat';
 	import { toastError } from '$lib/data/toast-state.svelte';
 	import Card from '$lib/ui/Card.svelte';
@@ -45,7 +46,10 @@
 			if (form.quarter > 0) payload.quarter = form.quarter;
 
 			const result = await vatReturnApi.create(payload);
-			goto(`/vat/returns/${result.id}`);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			goto(`/vat/returns/${result.data.id}`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se vytvořit přiznání');
 		} finally {

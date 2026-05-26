@@ -7,6 +7,7 @@
 		type SecurityTransaction,
 		type InvestmentYearSummary
 	} from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { fromHalere, toHalere } from '$lib/utils/money';
 	import { toastError } from '$lib/data/toast-state.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -297,6 +298,8 @@
 		if (!mounted) return;
 		loadData();
 	});
+
+	onCompanyChange(() => loadData());
 </script>
 
 <svelte:head>

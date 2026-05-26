@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { contactsApi, type Contact } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import ErrorAlert from '$lib/ui/ErrorAlert.svelte';
@@ -44,11 +46,16 @@
 	let isNew = $derived(page.params.id === 'new');
 	let contactId = $derived(isNew ? null : Number(page.params.id));
 
-	$effect(() => {
+	onMount(() => {
 		if (isNew) {
 			loading = false;
 			return;
 		}
+		loadContact();
+	});
+
+	onCompanyChange(() => {
+		if (isNew) return;
 		loadContact();
 	});
 

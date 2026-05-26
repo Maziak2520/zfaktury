@@ -22,6 +22,7 @@ func setupSequenceRouter(t *testing.T) *chi.Mux {
 	sequenceHandler := NewSequenceHandler(sequenceSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/invoice-sequences", sequenceHandler.Routes())
 	return r
 }

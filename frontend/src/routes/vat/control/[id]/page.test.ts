@@ -92,7 +92,7 @@ describe('Control Statement Detail', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/vat-control-statements/1',
+				'/api/v1/companies/1/vat-control-statements/1',
 				expect.objectContaining({ method: 'GET' })
 			);
 		});
@@ -259,7 +259,7 @@ describe('Control Statement Detail', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/vat-control-statements/1/recalculate',
+				'/api/v1/companies/1/vat-control-statements/1/recalculate',
 				expect.objectContaining({ method: 'POST' })
 			);
 		});
@@ -287,7 +287,7 @@ describe('Control Statement Detail', () => {
 
 		await waitFor(() => {
 			expect(mockFetch).toHaveBeenCalledWith(
-				'/api/v1/vat-control-statements/1',
+				'/api/v1/companies/1/vat-control-statements/1',
 				expect.objectContaining({ method: 'DELETE' })
 			);
 		});

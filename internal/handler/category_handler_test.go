@@ -31,6 +31,7 @@ func TestCategoryHandler_List(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -57,6 +58,7 @@ func TestCategoryHandler_Create(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -86,6 +88,7 @@ func TestCategoryHandler_Create_InvalidKey(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -103,7 +106,7 @@ func TestCategoryHandler_Update(t *testing.T) {
 		LabelCS: "Pred",
 		LabelEN: "Before",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -113,6 +116,7 @@ func TestCategoryHandler_Update(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -139,7 +143,7 @@ func TestCategoryHandler_Delete_Custom(t *testing.T) {
 		LabelCS: "Smazat",
 		LabelEN: "Delete",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -147,6 +151,7 @@ func TestCategoryHandler_Delete_Custom(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -160,7 +165,7 @@ func TestCategoryHandler_Delete_Default_Forbidden(t *testing.T) {
 	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
 
 	// Get a default category.
-	categories, err := repo.List(ctx)
+	categories, err := repo.List(ctx, 1)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -179,6 +184,7 @@ func TestCategoryHandler_Delete_Default_Forbidden(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -195,6 +201,7 @@ func TestCategoryHandler_Create_InvalidBody(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -211,6 +218,7 @@ func TestCategoryHandler_Update_InvalidID(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -228,7 +236,7 @@ func TestCategoryHandler_Update_InvalidBody(t *testing.T) {
 		LabelCS: "Test",
 		LabelEN: "Test",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -237,6 +245,7 @@ func TestCategoryHandler_Update_InvalidBody(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -252,6 +261,7 @@ func TestCategoryHandler_Delete_InvalidID(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -267,6 +277,7 @@ func TestCategoryHandler_Delete_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 
@@ -285,7 +296,7 @@ func TestCategoryHandler_List_WithCategories(t *testing.T) {
 		LabelEN: "List",
 		Color:   "#123456",
 	}
-	if err := repo.Create(ctx, cat); err != nil {
+	if err := repo.Create(ctx, 1, cat); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -293,6 +304,7 @@ func TestCategoryHandler_List_WithCategories(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/", h.Routes())
 	r.ServeHTTP(w, req)
 

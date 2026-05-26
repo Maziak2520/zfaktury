@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { incomeTaxApi, type IncomeTaxReturn, type TaxConstants } from '$lib/api/client';
+	import { incomeTaxApi, pcUrl, type IncomeTaxReturn, type TaxConstants } from '$lib/api/client';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { loadTaxConstants } from '$lib/data/tax-constants.svelte';
 	import { downloadFile } from '$lib/utils/download';
 	import { formatCZK } from '$lib/utils/money';
@@ -41,6 +42,8 @@
 		loadData();
 	});
 
+	onCompanyChange(() => loadData());
+
 	async function loadData() {
 		loading = true;
 		error = null;
@@ -61,7 +64,11 @@
 	async function handleRecalculate() {
 		actionLoading = 'recalculate';
 		try {
-			data = await incomeTaxApi.recalculate(returnId);
+			const result = await incomeTaxApi.recalculate(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se přepočítat');
 		} finally {
@@ -72,7 +79,11 @@
 	async function handleGenerateXml() {
 		actionLoading = 'generate';
 		try {
-			data = await incomeTaxApi.generateXml(returnId);
+			const result = await incomeTaxApi.generateXml(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se generovat XML');
 		} finally {
@@ -83,7 +94,7 @@
 	async function handleDownloadXml() {
 		actionLoading = 'download';
 		try {
-			await downloadFile(`/api/v1/income-tax-returns/${returnId}/xml`, `dpfo-${returnId}.xml`);
+			await downloadFile(pcUrl(`/income-tax-returns/${returnId}/xml`), `dpfo-${returnId}.xml`);
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se stáhnout XML');
 		} finally {
@@ -99,7 +110,11 @@
 		showFileConfirm = false;
 		actionLoading = 'filed';
 		try {
-			data = await incomeTaxApi.markFiled(returnId);
+			const result = await incomeTaxApi.markFiled(returnId);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			data = result.data;
 			toastSuccess('Přiznání označeno jako podané');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se označit jako podané');

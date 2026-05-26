@@ -37,13 +37,13 @@ func setupReminderRouter(t *testing.T) (*chi.Mux, *domain.Invoice) {
 	emailSender := &testEmailSender{}
 
 	// Seed a customer with email.
-	customer := testutil.SeedContact(t, db, &domain.Contact{
+	customer := testutil.SeedContact(t, db, 1, &domain.Contact{
 		Name:  "Reminder Test Customer",
 		Email: "customer@example.com",
 	})
 
 	// Seed an overdue invoice.
-	inv := testutil.SeedInvoice(t, db, customer.ID, []domain.InvoiceItem{
+	inv := testutil.SeedInvoice(t, db, 1, customer.ID, []domain.InvoiceItem{
 		{Description: "Service", Quantity: 100, Unit: "hod", UnitPrice: 100000, VATRatePercent: 21},
 	})
 	// Mark as overdue.
@@ -59,7 +59,7 @@ func setupReminderRouter(t *testing.T) (*chi.Mux, *domain.Invoice) {
 	}
 
 	settingsRepo := repository.NewSettingsRepository(db)
-	if err := settingsRepo.Set(context.Background(), "company_name", "Jan Novak"); err != nil {
+	if err := settingsRepo.Set(context.Background(), 1, "company_name", "Jan Novak"); err != nil {
 		t.Fatalf("seeding company_name setting: %v", err)
 	}
 	settingsSvc := service.NewSettingsService(settingsRepo, nil)
@@ -68,6 +68,7 @@ func setupReminderRouter(t *testing.T) (*chi.Mux, *domain.Invoice) {
 	reminderHandler := NewReminderHandler(reminderSvc)
 
 	r := chi.NewRouter()
+	r.Use(injectTestCompany(1))
 	r.Mount("/api/v1/invoices", reminderHandler.Routes())
 
 	return r, inv

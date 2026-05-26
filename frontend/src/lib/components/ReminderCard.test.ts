@@ -57,7 +57,7 @@ describe('ReminderCard', () => {
 
 		// Verify the API call
 		const [url] = mockFetch.mock.calls[0];
-		expect(url).toBe('/api/v1/invoices/42/reminders');
+		expect(url).toBe('/api/v1/companies/1/invoices/42/reminders');
 
 		// Expand to see content
 		await fireEvent.click(screen.getByTestId('reminder-header'));
@@ -129,7 +129,7 @@ describe('ReminderCard', () => {
 
 		// Verify the send call
 		const [sendUrl, sendOptions] = mockFetch.mock.calls[1];
-		expect(sendUrl).toBe('/api/v1/invoices/42/remind');
+		expect(sendUrl).toBe('/api/v1/companies/1/invoices/42/remind');
 		expect(sendOptions.method).toBe('POST');
 
 		// After reload, should show 1 reminder

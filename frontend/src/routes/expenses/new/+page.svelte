@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { expensesApi, contactsApi, type Contact } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK, toHalere } from '$lib/utils/money';
 	import { toISODate } from '$lib/utils/date';
 	import CategoryPicker from '$lib/components/CategoryPicker.svelte';
@@ -43,6 +44,8 @@
 	onMount(() => {
 		loadContacts();
 	});
+
+	onCompanyChange(() => loadContacts());
 
 	async function loadContacts() {
 		try {

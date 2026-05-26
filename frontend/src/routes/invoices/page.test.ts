@@ -105,7 +105,7 @@ describe('Invoices list page', () => {
 		});
 
 		const url = mockFetch.mock.calls[0][0] as string;
-		expect(url).toContain('/api/v1/invoices');
+		expect(url).toContain('/api/v1/companies/1/invoices');
 	});
 
 	it('renders invoice rows with number, customer, amount, and status', async () => {

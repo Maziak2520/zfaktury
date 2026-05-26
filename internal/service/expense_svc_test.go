@@ -33,7 +33,7 @@ func TestExpenseService_Create_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if e.ID == 0 {
@@ -47,7 +47,7 @@ func TestExpenseService_Create_EmptyDescription(t *testing.T) {
 
 	e := makeExpense()
 	e.Description = ""
-	err := svc.Create(ctx, e)
+	err := svc.Create(ctx, 1, e)
 	if err == nil {
 		t.Error("expected error for empty description")
 	}
@@ -59,7 +59,7 @@ func TestExpenseService_Create_ZeroAmount(t *testing.T) {
 
 	e := makeExpense()
 	e.Amount = 0
-	err := svc.Create(ctx, e)
+	err := svc.Create(ctx, 1, e)
 	if err == nil {
 		t.Error("expected error for zero amount")
 	}
@@ -71,7 +71,7 @@ func TestExpenseService_Create_MissingIssueDate(t *testing.T) {
 
 	e := makeExpense()
 	e.IssueDate = time.Time{}
-	err := svc.Create(ctx, e)
+	err := svc.Create(ctx, 1, e)
 	if err == nil {
 		t.Error("expected error for missing issue date")
 	}
@@ -83,7 +83,7 @@ func TestExpenseService_Create_DefaultCurrency(t *testing.T) {
 
 	e := makeExpense()
 	e.CurrencyCode = ""
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if e.CurrencyCode != domain.CurrencyCZK {
@@ -97,7 +97,7 @@ func TestExpenseService_Create_DefaultBusinessPercent(t *testing.T) {
 
 	e := makeExpense()
 	e.BusinessPercent = 0
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if e.BusinessPercent != 100 {
@@ -120,7 +120,7 @@ func TestExpenseService_Create_InvalidBusinessPercent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := makeExpense()
 			e.BusinessPercent = tt.percent
-			err := svc.Create(ctx, e)
+			err := svc.Create(ctx, 1, e)
 			if err == nil {
 				t.Error("expected error for invalid business percent")
 			}
@@ -137,7 +137,7 @@ func TestExpenseService_Create_VATCalculation(t *testing.T) {
 	e.VATRatePercent = 21
 	e.VATAmount = 0 // Should be auto-calculated.
 
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -157,7 +157,7 @@ func TestExpenseService_Create_VATNotOverridden(t *testing.T) {
 	e.VATRatePercent = 21
 	e.VATAmount = 5000 // Manually set -- should NOT be overridden.
 
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -171,12 +171,12 @@ func TestExpenseService_Update_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	e.Description = "Updated"
-	if err := svc.Update(ctx, e); err != nil {
+	if err := svc.Update(ctx, 1, e); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 }
@@ -186,7 +186,7 @@ func TestExpenseService_Update_ZeroID(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	err := svc.Update(ctx, e)
+	err := svc.Update(ctx, 1, e)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -197,12 +197,12 @@ func TestExpenseService_Update_EmptyDescription(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	e.Description = ""
-	err := svc.Update(ctx, e)
+	err := svc.Update(ctx, 1, e)
 	if err == nil {
 		t.Error("expected error for empty description")
 	}
@@ -213,12 +213,12 @@ func TestExpenseService_Update_ZeroAmount(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	e.Amount = 0
-	err := svc.Update(ctx, e)
+	err := svc.Update(ctx, 1, e)
 	if err == nil {
 		t.Error("expected error for zero amount")
 	}
@@ -228,7 +228,7 @@ func TestExpenseService_Delete_ZeroID(t *testing.T) {
 	svc := newExpenseTestStack(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 0)
+	err := svc.Delete(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -238,7 +238,7 @@ func TestExpenseService_GetByID_ZeroID(t *testing.T) {
 	svc := newExpenseTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 0)
+	_, err := svc.GetByID(ctx, 1, 0)
 	if err == nil {
 		t.Error("expected error for zero ID")
 	}
@@ -250,12 +250,12 @@ func TestExpenseService_List_DefaultLimit(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		e := makeExpense()
-		if err := svc.Create(ctx, e); err != nil {
+		if err := svc.Create(ctx, 1, e); err != nil {
 			t.Fatalf("Create() error: %v", err)
 		}
 	}
 
-	expenses, total, err := svc.List(ctx, domain.ExpenseFilter{})
+	expenses, total, err := svc.List(ctx, 1, domain.ExpenseFilter{})
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}
@@ -272,11 +272,11 @@ func TestExpenseService_GetByID_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, e.ID)
+	got, err := svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestExpenseService_GetByID_NotFound(t *testing.T) {
 	svc := newExpenseTestStack(t)
 	ctx := context.Background()
 
-	_, err := svc.GetByID(ctx, 99999)
+	_, err := svc.GetByID(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent expense")
 	}
@@ -303,16 +303,16 @@ func TestExpenseService_Delete_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.Delete(ctx, e.ID); err != nil {
+	if err := svc.Delete(ctx, 1, e.ID); err != nil {
 		t.Fatalf("Delete() error: %v", err)
 	}
 
 	// Verify it's gone.
-	_, err := svc.GetByID(ctx, e.ID)
+	_, err := svc.GetByID(ctx, 1, e.ID)
 	if err == nil {
 		t.Error("expected error after deleting expense")
 	}
@@ -322,7 +322,7 @@ func TestExpenseService_Delete_NotFound(t *testing.T) {
 	svc := newExpenseTestStack(t)
 	ctx := context.Background()
 
-	err := svc.Delete(ctx, 99999)
+	err := svc.Delete(ctx, 1, 99999)
 	if err == nil {
 		t.Error("expected error for non-existent expense")
 	}
@@ -356,7 +356,7 @@ func TestExpenseService_Create_WithItems(t *testing.T) {
 		},
 	}
 
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	if e.ID == 0 {
@@ -374,7 +374,7 @@ func TestExpenseService_Create_WithItems(t *testing.T) {
 	}
 
 	// Verify items are persisted
-	got, err := svc.GetByID(ctx, e.ID)
+	got, err := svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestExpenseService_Update_WithItems(t *testing.T) {
 
 	// Create a flat expense first
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
@@ -409,11 +409,11 @@ func TestExpenseService_Update_WithItems(t *testing.T) {
 			SortOrder:      1,
 		},
 	}
-	if err := svc.Update(ctx, e); err != nil {
+	if err := svc.Update(ctx, 1, e); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, e.ID)
+	got, err := svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -440,18 +440,18 @@ func TestExpenseService_Update_RemoveItems(t *testing.T) {
 			{Description: "Temp", Quantity: 100, UnitPrice: 10000, VATRatePercent: 0, SortOrder: 1},
 		},
 	}
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	// Update without items (back to flat)
 	e.Items = nil
 	e.Amount = domain.NewAmount(500, 0)
-	if err := svc.Update(ctx, e); err != nil {
+	if err := svc.Update(ctx, 1, e); err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, e.ID)
+	got, err := svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -476,7 +476,7 @@ func TestExpenseService_Create_ZeroAmountWithItems(t *testing.T) {
 			{Description: "Item", Quantity: 100, UnitPrice: 10000, VATRatePercent: 0, SortOrder: 1},
 		},
 	}
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() should not error when Amount=0 but items exist: %v", err)
 	}
 	if e.Amount == 0 {
@@ -489,20 +489,20 @@ func TestExpenseService_MarkTaxReviewed_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	e1 := makeExpense()
-	if err := svc.Create(ctx, e1); err != nil {
+	if err := svc.Create(ctx, 1, e1); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	e2 := makeExpense()
-	if err := svc.Create(ctx, e2); err != nil {
+	if err := svc.Create(ctx, 1, e2); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
-	if err := svc.MarkTaxReviewed(ctx, []int64{e1.ID, e2.ID}); err != nil {
+	if err := svc.MarkTaxReviewed(ctx, 1, []int64{e1.ID, e2.ID}); err != nil {
 		t.Fatalf("MarkTaxReviewed() error: %v", err)
 	}
 
 	// Verify both are marked.
-	got1, err := svc.GetByID(ctx, e1.ID)
+	got1, err := svc.GetByID(ctx, 1, e1.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -510,7 +510,7 @@ func TestExpenseService_MarkTaxReviewed_Valid(t *testing.T) {
 		t.Error("expected TaxReviewedAt to be set for e1")
 	}
 
-	got2, err := svc.GetByID(ctx, e2.ID)
+	got2, err := svc.GetByID(ctx, 1, e2.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -523,7 +523,7 @@ func TestExpenseService_MarkTaxReviewed_EmptyIDs(t *testing.T) {
 	svc := newExpenseTestStack(t)
 	ctx := context.Background()
 
-	err := svc.MarkTaxReviewed(ctx, []int64{})
+	err := svc.MarkTaxReviewed(ctx, 1, []int64{})
 	if err == nil {
 		t.Error("expected error for empty IDs")
 	}
@@ -537,7 +537,7 @@ func TestExpenseService_MarkTaxReviewed_TooManyIDs(t *testing.T) {
 	for i := range ids {
 		ids[i] = int64(i + 1)
 	}
-	err := svc.MarkTaxReviewed(ctx, ids)
+	err := svc.MarkTaxReviewed(ctx, 1, ids)
 	if err == nil {
 		t.Error("expected error for too many IDs")
 	}
@@ -548,17 +548,17 @@ func TestExpenseService_UnmarkTaxReviewed_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	// Mark first.
-	if err := svc.MarkTaxReviewed(ctx, []int64{e.ID}); err != nil {
+	if err := svc.MarkTaxReviewed(ctx, 1, []int64{e.ID}); err != nil {
 		t.Fatalf("MarkTaxReviewed() error: %v", err)
 	}
 
 	// Verify marked.
-	got, err := svc.GetByID(ctx, e.ID)
+	got, err := svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -567,12 +567,12 @@ func TestExpenseService_UnmarkTaxReviewed_Valid(t *testing.T) {
 	}
 
 	// Unmark.
-	if err := svc.UnmarkTaxReviewed(ctx, []int64{e.ID}); err != nil {
+	if err := svc.UnmarkTaxReviewed(ctx, 1, []int64{e.ID}); err != nil {
 		t.Fatalf("UnmarkTaxReviewed() error: %v", err)
 	}
 
 	// Verify unmarked.
-	got, err = svc.GetByID(ctx, e.ID)
+	got, err = svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}
@@ -585,7 +585,7 @@ func TestExpenseService_UnmarkTaxReviewed_EmptyIDs(t *testing.T) {
 	svc := newExpenseTestStack(t)
 	ctx := context.Background()
 
-	err := svc.UnmarkTaxReviewed(ctx, []int64{})
+	err := svc.UnmarkTaxReviewed(ctx, 1, []int64{})
 	if err == nil {
 		t.Error("expected error for empty IDs")
 	}
@@ -599,7 +599,7 @@ func TestExpenseService_UnmarkTaxReviewed_TooManyIDs(t *testing.T) {
 	for i := range ids {
 		ids[i] = int64(i + 1)
 	}
-	err := svc.UnmarkTaxReviewed(ctx, ids)
+	err := svc.UnmarkTaxReviewed(ctx, 1, ids)
 	if err == nil {
 		t.Error("expected error for too many IDs")
 	}
@@ -610,16 +610,16 @@ func TestExpenseService_MarkTaxReviewed_DedupIDs(t *testing.T) {
 	ctx := context.Background()
 
 	e := makeExpense()
-	if err := svc.Create(ctx, e); err != nil {
+	if err := svc.Create(ctx, 1, e); err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 
 	// Pass duplicate IDs -- should not error.
-	if err := svc.MarkTaxReviewed(ctx, []int64{e.ID, e.ID, e.ID}); err != nil {
+	if err := svc.MarkTaxReviewed(ctx, 1, []int64{e.ID, e.ID, e.ID}); err != nil {
 		t.Fatalf("MarkTaxReviewed() with duplicate IDs error: %v", err)
 	}
 
-	got, err := svc.GetByID(ctx, e.ID)
+	got, err := svc.GetByID(ctx, 1, e.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error: %v", err)
 	}

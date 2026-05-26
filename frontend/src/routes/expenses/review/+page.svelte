@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { SvelteURLSearchParams, SvelteSet } from 'svelte/reactivity';
+	import { SvelteSet } from 'svelte/reactivity';
+	import { expensesApi } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { toastSuccess, toastError } from '$lib/data/toast-state.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
@@ -73,19 +75,22 @@
 		loading = true;
 		error = null;
 		try {
-			const query = new SvelteURLSearchParams();
-			query.set('limit', String(perPage));
-			query.set('offset', String((page - 1) * perPage));
-			if (dateFrom) query.set('date_from', dateFrom);
-			if (dateTo) query.set('date_to', dateTo);
-			if (taxReviewedFilter === 'reviewed') query.set('tax_reviewed', 'true');
-			if (taxReviewedFilter === 'not_reviewed') query.set('tax_reviewed', 'false');
+			const params: {
+				limit: number;
+				offset: number;
+				date_from?: string;
+				date_to?: string;
+				tax_reviewed?: string;
+			} = {
+				limit: perPage,
+				offset: (page - 1) * perPage
+			};
+			if (dateFrom) params.date_from = dateFrom;
+			if (dateTo) params.date_to = dateTo;
+			if (taxReviewedFilter === 'reviewed') params.tax_reviewed = 'true';
+			if (taxReviewedFilter === 'not_reviewed') params.tax_reviewed = 'false';
 
-			const res = await fetch(`/api/v1/expenses?${query.toString()}`);
-			if (!res.ok) {
-				throw new Error(`Chyba ${res.status}: ${res.statusText}`);
-			}
-			const data: ListResponse = await res.json();
+			const data = (await expensesApi.list(params)) as unknown as ListResponse;
 			expenses = data.data;
 			total = data.total;
 			// Clear selection when list changes
@@ -121,15 +126,7 @@
 		bulkLoading = true;
 		const count = selectedIds.size;
 		try {
-			const res = await fetch('/api/v1/expenses/review', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids: Array.from(selectedIds) })
-			});
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error((body as { error?: string }).error ?? `Chyba ${res.status}`);
-			}
+			await expensesApi.markTaxReviewed(Array.from(selectedIds));
 			toastSuccess(`${count} nákladů označeno`);
 			await loadExpenses();
 		} catch (e) {
@@ -144,15 +141,7 @@
 		bulkLoading = true;
 		const count = selectedIds.size;
 		try {
-			const res = await fetch('/api/v1/expenses/unreview', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids: Array.from(selectedIds) })
-			});
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error((body as { error?: string }).error ?? `Chyba ${res.status}`);
-			}
+			await expensesApi.unmarkTaxReviewed(Array.from(selectedIds));
 			toastSuccess(`${count} nákladů odznačeno`);
 			await loadExpenses();
 		} catch (e) {
@@ -170,6 +159,8 @@
 	onMount(() => {
 		loadExpenses();
 	});
+
+	onCompanyChange(() => loadExpenses());
 </script>
 
 <svelte:head>

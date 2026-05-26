@@ -46,15 +46,21 @@ type ocrResultResponse struct {
 	Confidence     float64           `json:"confidence"`
 }
 
-// ProcessDocument handles POST /documents/{id}/ocr.
+// ProcessDocument handles POST /api/v1/companies/{companyID}/documents/{id}/ocr.
 func (h *OCRHandler) ProcessDocument(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid document ID")
 		return
 	}
 
-	result, err := h.svc.ProcessDocument(r.Context(), id)
+	result, err := h.svc.ProcessDocument(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("OCR processing failed", "error", err, "document_id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())

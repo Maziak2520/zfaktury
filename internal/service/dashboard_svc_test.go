@@ -60,7 +60,7 @@ func TestDashboardService_GetDashboard_WithData(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed a contact for invoices.
-	contact := testutil.SeedContact(t, db, nil)
+	contact := testutil.SeedContact(t, db, 1, nil)
 
 	// Seed two invoices with known item amounts.
 	// SeedInvoice uses time.Now() for dates, so they appear in the current month.
@@ -73,7 +73,7 @@ func TestDashboardService_GetDashboard_WithData(t *testing.T) {
 			VATRatePercent: 0,
 		},
 	}
-	inv1 := testutil.SeedInvoice(t, db, contact.ID, items1)
+	inv1 := testutil.SeedInvoice(t, db, 1, contact.ID, items1)
 
 	items2 := []domain.InvoiceItem{
 		{
@@ -84,10 +84,10 @@ func TestDashboardService_GetDashboard_WithData(t *testing.T) {
 			VATRatePercent: 0,
 		},
 	}
-	inv2 := testutil.SeedInvoice(t, db, contact.ID, items2)
+	inv2 := testutil.SeedInvoice(t, db, 1, contact.ID, items2)
 
 	// Seed an expense in the current month.
-	testutil.SeedExpense(t, db, &domain.Expense{
+	testutil.SeedExpense(t, db, 1, &domain.Expense{
 		Description:  "Office supplies",
 		Amount:       domain.NewAmount(500, 0),
 		IssueDate:    time.Now(),

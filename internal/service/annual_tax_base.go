@@ -18,7 +18,8 @@ type AnnualTaxBase struct {
 	ExpenseIDs []int64
 }
 
-// CalculateAnnualBase computes the annual revenue and expenses from invoices and expenses.
+// CalculateAnnualBase computes the annual revenue and expenses from invoices and expenses
+// within the given company.
 // Revenue = sum of SubtotalAmount from invoices where status IN (sent, paid, overdue),
 // DeliveryDate (or IssueDate) in the given year, type is standard or credit_note.
 // Expenses = sum of (Amount - VATAmount) * BusinessPercent/100 from tax-reviewed expenses.
@@ -26,12 +27,13 @@ func CalculateAnnualBase(
 	ctx context.Context,
 	invoiceRepo repository.InvoiceRepo,
 	expenseRepo repository.ExpenseRepo,
+	companyID int64,
 	year int,
 ) (*AnnualTaxBase, error) {
 	dateFrom := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
 	dateTo := time.Date(year, 12, 31, 23, 59, 59, 0, time.UTC)
 
-	invoices, _, err := invoiceRepo.List(ctx, domain.InvoiceFilter{
+	invoices, _, err := invoiceRepo.List(ctx, companyID, domain.InvoiceFilter{
 		DateFrom: &dateFrom,
 		DateTo:   &dateTo,
 		Limit:    100000,
@@ -54,7 +56,7 @@ func CalculateAnnualBase(
 		}
 	}
 
-	expenses, _, err := expenseRepo.List(ctx, domain.ExpenseFilter{
+	expenses, _, err := expenseRepo.List(ctx, companyID, domain.ExpenseFilter{
 		DateFrom: &dateFrom,
 		DateTo:   &dateTo,
 		Limit:    100000,

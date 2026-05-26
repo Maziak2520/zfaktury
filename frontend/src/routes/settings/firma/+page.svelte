@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { settingsApi, type Settings } from '$lib/api/client';
+	import { notifyIfSwitchedCompany, onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import HelpTip from '$lib/ui/HelpTip.svelte';
 	import LoadingSpinner from '$lib/ui/LoadingSpinner.svelte';
@@ -18,6 +19,8 @@
 		loadSettings();
 	});
 
+	onCompanyChange(() => loadSettings());
+
 	async function loadSettings() {
 		loading = true;
 		error = null;
@@ -33,7 +36,11 @@
 	async function handleSave() {
 		saving = true;
 		try {
-			settings = await settingsApi.update(settings);
+			const result = await settingsApi.update(settings);
+			if (notifyIfSwitchedCompany(result.submittedFor, result.respondedFor)) {
+				return;
+			}
+			settings = result.data;
 			toastSuccess('Nastavení firmy uloženo');
 		} catch (e) {
 			toastError(e instanceof Error ? e.message : 'Nepodařilo se uložit nastavení');

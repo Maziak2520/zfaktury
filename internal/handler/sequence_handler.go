@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -31,9 +32,15 @@ func (h *SequenceHandler) Routes() chi.Router {
 	return r
 }
 
-// List handles GET /api/v1/invoice-sequences.
+// List handles GET /api/v1/companies/{companyID}/invoice-sequences.
 func (h *SequenceHandler) List(w http.ResponseWriter, r *http.Request) {
-	sequences, err := h.svc.List(r.Context())
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
+	sequences, err := h.svc.List(r.Context(), company.ID)
 	if err != nil {
 		slog.Error("failed to list invoice sequences", "error", err)
 		respondError(w, http.StatusInternalServerError, "failed to list invoice sequences")
@@ -48,8 +55,14 @@ func (h *SequenceHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, items)
 }
 
-// Create handles POST /api/v1/invoice-sequences.
+// Create handles POST /api/v1/companies/{companyID}/invoice-sequences.
 func (h *SequenceHandler) Create(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	var req sequenceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -57,7 +70,7 @@ func (h *SequenceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	seq := req.toDomain()
-	if err := h.svc.Create(r.Context(), seq); err != nil {
+	if err := h.svc.Create(r.Context(), company.ID, seq); err != nil {
 		slog.Error("failed to create invoice sequence", "error", err)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -66,15 +79,21 @@ func (h *SequenceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, sequenceFromDomain(seq))
 }
 
-// GetByID handles GET /api/v1/invoice-sequences/{id}.
+// GetByID handles GET /api/v1/companies/{companyID}/invoice-sequences/{id}.
 func (h *SequenceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid sequence ID")
 		return
 	}
 
-	seq, err := h.svc.GetByID(r.Context(), id)
+	seq, err := h.svc.GetByID(r.Context(), company.ID, id)
 	if err != nil {
 		slog.Error("failed to get invoice sequence", "error", err, "id", id)
 		respondError(w, http.StatusNotFound, "invoice sequence not found")
@@ -84,8 +103,14 @@ func (h *SequenceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sequenceFromDomain(seq))
 }
 
-// Update handles PUT /api/v1/invoice-sequences/{id}.
+// Update handles PUT /api/v1/companies/{companyID}/invoice-sequences/{id}.
 func (h *SequenceHandler) Update(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid sequence ID")
@@ -101,8 +126,12 @@ func (h *SequenceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	seq := req.toDomain()
 	seq.ID = id
 
-	if err := h.svc.Update(r.Context(), seq); err != nil {
+	if err := h.svc.Update(r.Context(), company.ID, seq); err != nil {
 		slog.Error("failed to update invoice sequence", "error", err, "id", id)
+		if errors.Is(err, domain.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "invoice sequence not found")
+			return
+		}
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
@@ -110,15 +139,21 @@ func (h *SequenceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sequenceFromDomain(seq))
 }
 
-// Delete handles DELETE /api/v1/invoice-sequences/{id}.
+// Delete handles DELETE /api/v1/companies/{companyID}/invoice-sequences/{id}.
 func (h *SequenceHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	company, err := CompanyFromContext(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "no company in context")
+		return
+	}
+
 	id, err := parseID(r)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid sequence ID")
 		return
 	}
 
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), company.ID, id); err != nil {
 		slog.Error("failed to delete invoice sequence", "error", err, "id", id)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return

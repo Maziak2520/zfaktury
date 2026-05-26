@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { invoicesApi, statusHistoryApi, type Invoice } from '$lib/api/client';
+	import { onCompanyChange } from '$lib/stores/currentCompany.svelte';
 	import { formatCZK } from '$lib/utils/money';
 	import { formatDate } from '$lib/utils/date';
 	import {
@@ -81,16 +82,21 @@
 		loadInvoices();
 	});
 
+	onCompanyChange(() => {
+		page = 1;
+		loadInvoices();
+	});
+
 	async function handleCheckOverdue() {
 		checkingOverdue = true;
 		overdueMessage = null;
 		try {
 			const result = await statusHistoryApi.checkOverdue();
 			overdueMessage =
-				result.marked > 0
-					? `Označeno ${result.marked} faktur jako po splatnosti.`
+				result.data.marked > 0
+					? `Označeno ${result.data.marked} faktur jako po splatnosti.`
 					: 'Žádné nové faktury po splatnosti.';
-			if (result.marked > 0) await loadInvoices();
+			if (result.data.marked > 0) await loadInvoices();
 			setTimeout(() => {
 				overdueMessage = null;
 			}, 5000);
