@@ -9,8 +9,6 @@
 const MIN_NUMBER_WIDTH = 1;
 const MAX_NUMBER_WIDTH = 6;
 
-export const LEGACY_DEFAULT_PATTERN = '{prefix}{year}{number:04d}';
-
 /**
  * Render pattern against (prefix, year, number). Returns the formatted
  * invoice number. If the template is invalid, returns the raw pattern

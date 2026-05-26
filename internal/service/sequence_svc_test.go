@@ -371,8 +371,12 @@ func TestSequenceService_Update_InvalidPattern(t *testing.T) {
 		t.Fatalf("seed Create: %v", err)
 	}
 	seq.FormatPattern = "{prefix}-{yy}" // missing number
-	if err := svc.Update(ctx, 1, seq); err == nil {
+	err := svc.Update(ctx, 1, seq)
+	if err == nil {
 		t.Fatal("Update() with invalid pattern returned nil")
+	}
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("error does not wrap ErrInvalidInput: %v", err)
 	}
 }
 

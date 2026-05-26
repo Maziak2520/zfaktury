@@ -74,6 +74,9 @@ func (s *SequenceService) Update(ctx context.Context, companyID int64, seq *doma
 	if seq.NextNumber <= 0 {
 		return fmt.Errorf("next number must be positive: %w", domain.ErrInvalidInput)
 	}
+	if seq.FormatPattern == "" {
+		seq.FormatPattern = "{prefix}{year}{number:04d}"
+	}
 	if err := format.ValidatePattern(seq.FormatPattern); err != nil {
 		return fmt.Errorf("validating format pattern: %w", err)
 	}
@@ -193,7 +196,9 @@ func (s *SequenceService) GetOrCreateForYear(ctx context.Context, companyID int6
 
 // FormatPreview returns the formatted invoice number the sequence would
 // produce for its current next_number. Backed by internal/format.Render so
-// preview, persistence, and GetNextNumber stay in lockstep.
+// preview, persistence, and GetNextNumber stay in lockstep. The empty-pattern
+// fallback mirrors Create/Update — every layer normalises empty to the legacy
+// default so renders never see an empty pattern.
 func FormatPreview(seq *domain.InvoiceSequence) string {
 	pattern := seq.FormatPattern
 	if pattern == "" {
